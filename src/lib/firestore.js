@@ -56,7 +56,7 @@ export const getChaptersByPack = async (packId) => {
   const list = await safeGetDocs(query(chaptersCol));
   const normalized = list.map((item) => {
     const chapter = item.chapter ?? item.chapterId ?? item.id;
-    return { ...item, id: chapter, chapter };
+    rreturn { ...item, id: chapter, chapter, chapterId: chapter };
   });
   return normalized.sort((a, b) => {
     const ao = a.order ?? 9999;
@@ -68,7 +68,7 @@ export const getChaptersByPack = async (packId) => {
 export const upsertChapter = async (packId, chapter, data) => {
   const chaptersCol = collection(db, `word_packs/${packId}/chapters`);
   if (!chapter) throw new Error("chapter is required");
-  await setDoc(doc(chaptersCol, chapter), { ...data, chapter }, { merge: true });
+  await setDoc(doc(chaptersCol, chapter), { ...data, chapter, chapterId: chapter }, { merge: true });
   return chapter;
 };
 export const deleteChapter = async (packId, chapter) => {

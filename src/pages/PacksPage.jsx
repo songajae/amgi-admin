@@ -329,7 +329,7 @@ export default function PacksPage() {
   const handleDeleteWord = async (idx) => {
     if (!selectedPack || !selectedChapter) return;
     if (!window.confirm("이 단어를 삭제할까요?")) return;
-    const current = chapters.find((c) => c.chapterId === selectedChapter);
+    const current = chapters.find((c) => c.chapter === selectedChapter);
     const arr = wordsObjectToArray(current?.words || []);
     arr.splice(idx, 1);
     await upsertChapter(selectedPack.id, selectedChapter, {
@@ -418,7 +418,7 @@ export default function PacksPage() {
 
     const refreshed = await getChaptersByPack(selectedPack.id);
     setChaptersByPack((prev) => ({ ...prev, [selectedPack.id]: refreshed }));
-    setSelectedChapter(refreshed[0]?.chapterId || "");
+    setSelectedChapter(refreshed[0]?.chapter || "");
     setPendingPackGrouped(null);
   };
 
