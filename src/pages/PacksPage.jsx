@@ -10,7 +10,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import LoadingBar from "../components/LoadingBar";
 import LevelBar from "../components/packs/LevelBar";
 import SelectChips from "../components/packs/SelectChips";
-import WordsList from "../components/WordsList";
+import WordCollectionsPanel from "../components/packs/WordCollectionsPanel";
 import PackSampleCsvButton from "../components/samples/PackSampleCsvButton";
 import ChapterSampleCsvButton from "../components/samples/ChapterSampleCsvButton";
 import DuplicateWordModal from "../components/modals/DuplicateWordModal";
@@ -21,7 +21,7 @@ import {
 } from "../lib/firestore";
 
 /* ===== utils ===== */
-function wordsObjectToArray(wordsObj = {}) {
+function wordsObjectToArray(wordsObj = {}, extra = {}) {
   const arr = [];
   for (const word of Object.keys(wordsObj)) {
     const entries = Array.isArray(wordsObj[word]) ? wordsObj[word] : [];
@@ -30,7 +30,8 @@ function wordsObjectToArray(wordsObj = {}) {
         word,
         pos: e.pos || "",
         meaning: e.meaning || "",
-        example: e.example || ""
+        example: e.example || "",
+        ...extra,
       });
     }
   }
@@ -60,6 +61,24 @@ function ensureHeaders(header, required) {
 }
 function idxOf(header, name) {
   return header.map((h) => h.toLowerCase()).indexOf(name);
+}
+
+function buildWordMeta(pack, chapter) {
+  const packId = pack?.id || "";
+  const packLanguage = pack?.language || "";
+  const packName = pack?.name || packLanguage || packId;
+  const chapterId = chapter?.chapterId || "";
+  const chapterTitle = chapter?.title || chapter?.chapter || chapter?.chapterId || "";
+  const packChapterLabel = [packName, chapterTitle].filter(Boolean).join(" - ");
+
+  return {
+    packId,
+    packName,
+    packLanguage,
+    chapterId,
+    chapterTitle,
+    packChapterLabel,
+  };
 }
 
 export default function PacksPage() {
@@ -160,35 +179,73 @@ export default function PacksPage() {
    *  - 아무것도 선택 안 함: 전체 팩/전체 챕터 단어
    *  - 그 외(언어만/팩만 선택 등): 선택된 챕터가 없으면 빈 배열
    * --------------------------------------------------------- */
-  const words = useMemo(() => {
-    // 챕터까지 정확히 선택된 경우
+  const wordGroups = useMemo(() => {
+    const groups = [];
+
+    const pushGroup = (pack, chapter, fallbackIndex = 0) => {
+      if (!pack || !chapter) return;
+      const chapterId = chapter.chapterId || chapter.chapter || "";
+      const wordsArr = wordsObjectToArray(chapter?.words || {}).map((word, index) => ({
+        ...word,
+        __index: index,
+      }));
+
+      groups.push({
+        key: `${pack.id}:${chapterId || `fallback-${fallbackIndex}`}`,
+        language: pack.language,
+        packId: pack.id,
+        packName: pack.name,
+        chapterId,
+        chapterTitle: chapter.title || chapter.chapter || chapterId,
+        words: wordsArr,
+      });
+    };
+
+        const appendByPack = (pack) => {
+      if (!pack) return;
+      const chapters = chaptersByPack[pack.id] || [];
+      chapters.forEach((chapter, index) => {
+        pushGroup(pack, chapter, index);
+      });
+    };
+
     if (selectedLanguage && selectedPackId && selectedChapterId) {
-      return wordsObjectToArray(currentChapter?.words);
-    }
-
-    // 아무것도 선택 안 한 경우: 전체 단어
-    if (!selectedLanguage && !selectedPackId && !selectedChapterId) {
-      const all = [];
-      for (const p of packs) {
-        const chs = chaptersByPack[p.id] || [];
-        for (const c of chs) {
-          all.push(...wordsObjectToArray(c?.words || {}));
-        }
+      if (selectedPack && currentChapter) pushGroup(selectedPack, currentChapter);
+    } else if (!selectedLanguage && !selectedPackId && !selectedChapterId) {
+      for (const pack of packs) appendByPack(pack);
+    } else if (selectedPackId) {
+      if (selectedPack) appendByPack(selectedPack);
+    } else if (selectedLanguage) {
+      for (const pack of packs.filter((item) => item.language === selectedLanguage)) {
+        appendByPack(pack);
       }
-      return all;
+      } else {
+      for (const pack of packs) appendByPack(pack);
     }
 
-    // 그 외 케이스: 선택 챕터가 있으면 그 단어, 없으면 빈 배열
-    if (currentChapter) return wordsObjectToArray(currentChapter.words);
-    return [];
+    return groups.sort((a, b) => {
+      const languageCompare = (a.language || "").localeCompare(b.language || "");
+      if (languageCompare !== 0) return languageCompare;
+      const packCompare = (a.packName || "").localeCompare(b.packName || "");
+      if (packCompare !== 0) return packCompare;
+      return (a.chapterTitle || "").localeCompare(b.chapterTitle || "");
+    });
   }, [
     selectedLanguage,
-    selectedPackId,
+    selectedPack,
+    currentChapter,
+    selectedPack,
     currentChapter,
     selectedChapterId,
     packs,
     chaptersByPack,
   ]);
+
+  const activeGroupKey = useMemo(() => {
+    if (!selectedPackId || !selectedChapterId) return "";
+    return `${selectedPackId}:${selectedChapterId}`;
+  }, [selectedPackId, selectedChapterId]);
+
 
   /* -----------------------------------------------------------
    * 칩 onChange: 재클릭 시 선택 해제
@@ -625,8 +682,9 @@ export default function PacksPage() {
       </LevelBar>
 
       {/* 단어 리스트 */}
-      <WordsList
-        words={words}
+       <WordCollectionsPanel
+        groups={wordGroups}
+        activeGroupKey={activeGroupKey}
         onAdd={handleAddWord}
         onEdit={handleEditWord}
         onDelete={handleDeleteWord}

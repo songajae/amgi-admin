@@ -98,15 +98,17 @@ export const STRINGS = {
 
   // 언어팩 관리 메뉴
   packs: {
-    wordsList: {
+    wordsPanel: {
       title: "단어 리스트",
       searchPlaceholder: "단어/품사/뜻/예문 검색",
-      perPageOptions: [
-        { value: 10, label: "10명씩 보기" },
-        { value: 20, label: "20명씩 보기" },
-        { value: 50, label: "50명씩 보기" },
-        { value: 100, label: "100명씩 보기" },
-      ],
+      totalLabel: (count) => `총 ${count}개의 단어`,
+      labels: {
+        language: "언어",
+        pack: "언어팩",
+        chapter: "챕터",
+        unknown: "미정",
+      },
+      emptyMessage: "등록된 단어가 없습니다.",
     },
   },
 };

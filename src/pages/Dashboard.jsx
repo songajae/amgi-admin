@@ -40,9 +40,21 @@ export default function Dashboard() {
     <div className="p-4">
       <h1 className="text-2xl font-bold mb-4">{STRINGS.dashboard.title}</h1>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard title={STRINGS.dashboard.stats.totalUsers} value={stats.userCount} />
-        <StatCard title={STRINGS.dashboard.stats.totalPacks} value={stats.packCount} />
-        <StatCard title={STRINGS.dashboard.stats.totalVideos} value={stats.videoCount} />
+        <StatCard
+          title={STRINGS.dashboard.stats.totalUsers}
+          value={stats.userCount}
+          onClick={() => navigate("/users")}
+        />
+        <StatCard
+          title={STRINGS.dashboard.stats.totalPacks}
+          value={stats.packCount}
+          onClick={() => navigate("/packs")}
+        />
+        <StatCard
+          title={STRINGS.dashboard.stats.totalVideos}
+          value={stats.videoCount}
+          onClick={() => navigate("/videos")}
+        />
       </div>
     </div>
   );
