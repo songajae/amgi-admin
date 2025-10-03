@@ -10,9 +10,15 @@ export default function AdminsPage() {
   // Firestore에서 데이터를 다시 불러오는 함수
   const fetchAdmins = async () => {
     setLoading(true);
-    const adminList = await getAdmins();
-    setAdmins(adminList);
-    setLoading(false);
+    try {
+      const adminList = await getAdmins();
+      setAdmins(adminList);
+    } catch (error) {
+      console.error("관리자 목록을 불러오지 못했습니다.", error);
+      setAdmins([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // 페이지가 처음 로드될 때 관리자 목록을 불러옵니다.

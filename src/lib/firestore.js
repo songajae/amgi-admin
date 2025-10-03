@@ -56,7 +56,7 @@ export const getChaptersByPack = async (packId) => {
   const list = await safeGetDocs(query(chaptersCol));
   const normalized = list.map((item) => {
     const chapter = item.chapter ?? item.chapterId ?? item.id;
-    rreturn { ...item, id: chapter, chapter, chapterId: chapter };
+    return { ...item, id: chapter, chapter, chapterId: chapter };
   });
   return normalized.sort((a, b) => {
     const ao = a.order ?? 9999;
@@ -99,18 +99,29 @@ export const deleteDevice = async (docId) => deleteDoc(byId("user_devices", docI
    아래 함수는 둘 다 동기화하도록 구현.
    ============================================ */
 export async function setUserOwnedPacks(userId, packIds = []) {
-  // A) users/{id}.ownedPacks 필드 업데이트
-  await setDoc(byId("users", userId), { ownedPacks: packIds }, { merge: true });
+  const normalized = Array.isArray(packIds) ? packIds.filter(Boolean) : [];
+  const hasPacks = normalized.length > 0;
+
+  // A) users/{id}.ownedPacks 필드 업데이트 (없으면 null 저장)
+  await setDoc(
+    byId("users", userId),
+    { ownedPacks: hasPacks ? normalized : null },
+    { merge: true }
+  );
 
   // B) user_purchases 동기화 (단순화: 기존 것을 지우고 다시 쓰기)
   //    규모가 커지면 서버 함수로 마이그레이션 권장
   const purchases = await safeGetDocs(query(col("user_purchases"), where("userId", "==", userId)));
   // 삭제
   await Promise.all(purchases.map((p) => deleteDoc(byId("user_purchases", p.id))));
+   if (!hasPacks) {
+    return;
+  }
+
   // 추가
   const now = Date.now();
   await Promise.all(
-    (packIds || []).map((pid) =>
+    normalized.map((pid) =>
       addDoc(col("user_purchases"), {
         userId,
         packId: pid,

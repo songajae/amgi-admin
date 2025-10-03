@@ -117,7 +117,7 @@ export default function UserFormModal({
 
   return (
     <div className="fixed inset-0 bg-black/30 z-40" onClick={onClose}>
-     <div
+      <div
         ref={modalRef}
         className="bg-white rounded-xl shadow-xl p-5 space-y-4"
         style={positionStyle}

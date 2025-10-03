@@ -22,7 +22,7 @@ import {
   getWordPacks,
   setUserOwnedPacks,
 } from "../lib/firestore";
-import { STRINGS } from "../constants/string";
+import { STRINGS } from "../constants/strings";
 
 // 보유팩 라벨 유틸
 function makePackLabel(pack) {
