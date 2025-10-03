@@ -69,7 +69,7 @@ export default function PacksPage() {
 
   const [selectedLanguage, setSelectedLanguage] = useState("");
   const [selectedPackId, setSelectedPackId] = useState("");
-  const [selectedChapter, setSelectedChapter] = useState("");
+  const [selectedChapterId, setSelectedChapterId] = useState("");
 
   // 파일 입력 ref
   const packCsvRef = useRef(null);
@@ -116,7 +116,7 @@ export default function PacksPage() {
 
   /* 선택 언어 변경 → 언어팩, 챕터 초기화 */
   useEffect(() => {
-    if (!selectedLanguage) { setSelectedPackId(""); setSelectedChapter(""); return; }
+        if (!selectedLanguage) { setSelectedPackId(""); setSelectedChapterId(""); return; }
     const first = packs.find((p) => p.language === selectedLanguage);
     setSelectedPackId(first?.id || "");
   }, [selectedLanguage, packs]);
@@ -143,16 +143,16 @@ export default function PacksPage() {
   /* 선택 팩이 바뀌면 해당 팩의 챕터 최신화 + 첫 챕터 선택 */
   useEffect(() => {
     (async () => {
-      if (!selectedPackId) { setSelectedChapter(""); return; }
+      if (!selectedPackId) { setSelectedChapterId(""); return; }
       const list = await getChaptersByPack(selectedPackId);
       setChaptersByPack((prev) => ({ ...prev, [selectedPackId]: list }));
-      setSelectedChapter(list[0]?.chapter || "");
+      setSelectedChapterId(list[0]?.chapterId || "");
     })();
   }, [selectedPackId]);
 
   const chapters = chaptersByPack[selectedPackId] || [];
   const selectedPack = packs.find((p) => p.id === selectedPackId) || null;
-  const currentChapter = chapters.find((c) => c.chapter === selectedChapter) || null;
+  const currentChapter = chapters.find((c) => c.chapterId === selectedChapterId) || null;
 
   /* -----------------------------------------------------------
    * 단어 목록 계산
@@ -162,12 +162,12 @@ export default function PacksPage() {
    * --------------------------------------------------------- */
   const words = useMemo(() => {
     // 챕터까지 정확히 선택된 경우
-    if (selectedLanguage && selectedPackId && selectedChapter) {
+    if (selectedLanguage && selectedPackId && selectedChapterId) {
       return wordsObjectToArray(currentChapter?.words);
     }
 
     // 아무것도 선택 안 한 경우: 전체 단어
-    if (!selectedLanguage && !selectedPackId && !selectedChapter) {
+    if (!selectedLanguage && !selectedPackId && !selectedChapterId) {
       const all = [];
       for (const p of packs) {
         const chs = chaptersByPack[p.id] || [];
@@ -185,7 +185,7 @@ export default function PacksPage() {
     selectedLanguage,
     selectedPackId,
     currentChapter,
-    selectedChapter,
+    selectedChapterId,
     packs,
     chaptersByPack,
   ]);
@@ -196,14 +196,14 @@ export default function PacksPage() {
   const onChangeLanguage = (id) => {
     setSelectedLanguage((prev) => (prev === id ? "" : id));
     setSelectedPackId("");
-    setSelectedChapter("");
+    setSelectedChapterId("");
   };
   const onChangePack = (id) => {
     setSelectedPackId((prev) => (prev === id ? "" : id));
-    setSelectedChapter("");
+    setSelectedChapterId("");
   };
   const onChangeChapter = (id) => {
-    setSelectedChapter((prev) => (prev === id ? "" : id));
+    setSelectedChapterId((prev) => (prev === id ? "" : id));
   };
 
   /* ===== 언어 액션들 ===== */
@@ -232,7 +232,7 @@ export default function PacksPage() {
     for (const t of targets) await deleteWordPack(t.id);
     setSelectedLanguage("");
     setSelectedPackId("");
-    setSelectedChapter("");
+    setSelectedChapterId("");
     await fetchPacks();
   };
 
@@ -258,7 +258,7 @@ export default function PacksPage() {
     if (!window.confirm(`"${selectedPack.name}" 언어팩을 삭제할까요?`)) return;
     await deleteWordPack(selectedPack.id);
     setSelectedPackId("");
-    setSelectedChapter("");
+    setSelectedChapterId("");
     await fetchPacks();
   };
 
@@ -268,49 +268,58 @@ export default function PacksPage() {
     const chapter = prompt("챕터 ID(예: ch1)");
     if (!chapter) return;
     const title = prompt("챕터 제목", chapter) || chapter;
-    await upsertChapter(selectedPack.id, chapter, { title, words: {} });
+    const chapterId = await upsertChapter(selectedPack.id, null, { chapter, title, words: {} });
     const list = await getChaptersByPack(selectedPack.id);
     setChaptersByPack((prev) => ({ ...prev, [selectedPack.id]: list }));
-    setSelectedChapter(chapter);
+    setSelectedChapterId(chapterId);
   };
   const handleEditChapter = async () => {
-    if (!selectedPack || !selectedChapter) return alert("챕터를 선택하세요.");
-    const current = chapters.find((c) => c.chapter === selectedChapter);
-    const newTitle = prompt("챕터 제목 변경", current?.title || selectedChapter) || current?.title;
-    await upsertChapter(selectedPack.id, selectedChapter, { title: newTitle, words: current?.words || {} });
+    if (!selectedPack || !selectedChapterId) return alert("챕터를 선택하세요.");
+    const current = chapters.find((c) => c.chapterId === selectedChapterId);
+    const chapterLabel = current?.chapter || current?.title || "";
+    const newTitle = prompt("챕터 제목 변경", current?.title || chapterLabel) || current?.title;
+    await upsertChapter(selectedPack.id, selectedChapterId, {
+      chapter: chapterLabel,
+      title: newTitle,
+      words: current?.words || {},
+    });
     const list = await getChaptersByPack(selectedPack.id);
     setChaptersByPack((prev) => ({ ...prev, [selectedPack.id]: list }));
   };
   const handleDeleteChapter = async () => {
-    if (!selectedChapter) return alert("챕터를 선택하세요.");
-    if (!window.confirm(`챕터 "${selectedChapter}" 를 삭제할까요?`)) return;
-    await deleteChapter(selectedPack.id, selectedChapter); // ✅ 2025-09-27: packId 인자 추가
+    if (!selectedChapterId) return alert("챕터를 선택하세요.");
+    const current = chapters.find((c) => c.chapterId === selectedChapterId);
+    const chapterLabel = current?.chapter || current?.title || selectedChapterId;
+    if (!window.confirm(`챕터 "${chapterLabel}" 를 삭제할까요?`)) return;
+    await deleteChapter(selectedPack.id, selectedChapterId); // ✅ 2025-09-27: packId 인자 추가
     const list = await getChaptersByPack(selectedPack.id);
     setChaptersByPack((prev) => ({ ...prev, [selectedPack.id]: list }));
-    setSelectedChapter(list[0]?.chapter || "");
+    setSelectedChapterId(list[0]?.chapterId || "");
   };
 
   /* ===== 단어 액션 ===== */
   const handleAddWord = async () => {
-    if (!selectedPack || !selectedChapter) return alert("챕터를 선택하세요.");
+    if (!selectedPack || !selectedChapterId) return alert("챕터를 선택하세요.");
     const word = prompt("단어");
     if (!word) return;
     const pos = prompt("품사", "n.") || "";
     const meaning = prompt("뜻") || "";
     const example = prompt("예문(선택)") || "";
-    const current = chapters.find((c) => c.chapter === selectedChapter);
+    const current = chapters.find((c) => c.chapterId === selectedChapterId);
     const arr = wordsObjectToArray(current?.words || []);
     arr.push({ word, pos, meaning, example });
-    await upsertChapter(selectedPack.id, selectedChapter, {
-      title: current?.title || selectedChapter,
+    const chapterLabel = current?.chapter || current?.title || selectedChapterId;
+    await upsertChapter(selectedPack.id, selectedChapterId, {
+      chapter: chapterLabel,
+      title: current?.title || chapterLabel,
       words: wordsArrayToObject(arr),
     });
     const list = await getChaptersByPack(selectedPack.id);
     setChaptersByPack((prev) => ({ ...prev, [selectedPack.id]: list }));
   };
   const handleEditWord = async (idx) => {
-    if (!selectedPack || !selectedChapter) return;
-    const current = chapters.find((c) => c.chapter === selectedChapter);
+    if (!selectedPack || !selectedChapterId) return;
+    const current = chapters.find((c) => c.chapterId === selectedChapterId);
     const arr = wordsObjectToArray(current?.words || []);
     const w = arr[idx];
     if (!w) return;
@@ -319,21 +328,25 @@ export default function PacksPage() {
     const meaning = prompt("뜻", w.meaning || "") || w.meaning;
     const example = prompt("예문", w.example || "") || w.example;
     arr[idx] = { word, pos, meaning, example };
-     await upsertChapter(selectedPack.id, selectedChapter, {
-      title: current?.title || selectedChapter,
+     const chapterLabel = current?.chapter || current?.title || selectedChapterId;
+    await upsertChapter(selectedPack.id, selectedChapterId, {
+      chapter: chapterLabel,
+      title: current?.title || chapterLabel,
       words: wordsArrayToObject(arr),
     });
     const list = await getChaptersByPack(selectedPack.id);
     setChaptersByPack((prev) => ({ ...prev, [selectedPack.id]: list }));
   };
   const handleDeleteWord = async (idx) => {
-    if (!selectedPack || !selectedChapter) return;
+    if (!selectedPack || !selectedChapterId) return;
     if (!window.confirm("이 단어를 삭제할까요?")) return;
-    const current = chapters.find((c) => c.chapter === selectedChapter);
+    const current = chapters.find((c) => c.chapterId === selectedChapterId);
     const arr = wordsObjectToArray(current?.words || []);
     arr.splice(idx, 1);
-    await upsertChapter(selectedPack.id, selectedChapter, {
-      title: current?.title || selectedChapter,
+    const chapterLabel = current?.chapter || current?.title || selectedChapterId;
+    await upsertChapter(selectedPack.id, selectedChapterId, {
+      chapter: chapterLabel,
+      title: current?.title || chapterLabel,
       words: wordsArrayToObject(arr),
     });
     const list = await getChaptersByPack(selectedPack.id);
@@ -397,20 +410,30 @@ export default function PacksPage() {
 
     if (mode === "overwrite") {
       const existing = await getChaptersByPack(selectedPack.id);
-      for (const c of existing) await deleteChapter(selectedPack.id, c.chapter); // ✅ 2025-09-27
+      for (const c of existing) await deleteChapter(selectedPack.id, c.chapterId); // ✅ 2025-09-27
+      let order = 0;
       for (const ch of Object.keys(grouped)) {
         const { title, wordsArr } = grouped[ch];
-        await upsertChapter(selectedPack.id, ch, { title, words: wordsArrayToObject(wordsArr) });
+        const chapterLabel = ch || `chapter-${order + 1}`;
+        await upsertChapter(selectedPack.id, null, {
+          chapter: chapterLabel,
+          title: title || chapterLabel,
+          order: order + 1,
+          words: wordsArrayToObject(wordsArr),
+        });
+        order += 1;
       }
     } else if (mode === "append") {
       const existing = await getChaptersByPack(selectedPack.id);
       let cursor = existing.length;
       for (const ch of Object.keys(grouped)) {
         cursor += 1;
-        const nextChapter = `ch${cursor}`;
         const { title, wordsArr } = grouped[ch];
-        await upsertChapter(selectedPack.id, nextChapter, {
-          title: title || nextChapter,
+        const chapterLabel = ch || `ch${cursor}`;
+        await upsertChapter(selectedPack.id, null, {
+          chapter: chapterLabel,
+          title: title || chapterLabel,
+          order: cursor,
           words: wordsArrayToObject(wordsArr),
         });
       }
@@ -418,7 +441,7 @@ export default function PacksPage() {
 
     const refreshed = await getChaptersByPack(selectedPack.id);
     setChaptersByPack((prev) => ({ ...prev, [selectedPack.id]: refreshed }));
-    setSelectedChapter(refreshed[0]?.chapter || "");
+    setSelectedChapterId(refreshed[0]?.chapterId || "");
     setPendingPackGrouped(null);
   };
 
@@ -484,14 +507,16 @@ export default function PacksPage() {
         }
       }
 
-      await upsertChapter(selectedPack.id, last.chapter, {
-        title: last.title || last.chapter,
+      const chapterLabel = last.chapter || last.title || last.chapterId;
+      await upsertChapter(selectedPack.id, last.chapterId, {
+        chapter: chapterLabel,
+        title: last.title || chapterLabel,
         words: wordsArrayToObject(baseArr),
       });
 
       const refreshed = await getChaptersByPack(selectedPack.id);
       setChaptersByPack((prev) => ({ ...prev, [selectedPack.id]: refreshed }));
-      setSelectedChapter(last.chapter);
+      setSelectedChapterId(last.chapterId);
       alert("CSV를 마지막 챕터에 추가했습니다.");
     } catch (err) {
       console.error(err);
@@ -510,10 +535,13 @@ export default function PacksPage() {
     const typeText = (p.type || "free");
     return { id: p.id, label: `${p.name} (${chCount}) ${typeText}` };
   });
-  const chapterItems = (chapters || []).map((c) => ({
-    id: c.chapter,
-    label: `${c.chapter}. ${c.title || c.chapter}`,
-  }));
+  const chapterItems = (chapters || []).map((c) => {
+    const chapterLabel = c.chapter || c.title || c.chapterId;
+    return {
+      id: c.chapterId,
+      label: c.chapter ? `${c.chapter}. ${c.title || c.chapter}` : chapterLabel,
+    };
+  });
 
   return (
     <div className="p-4">
@@ -584,7 +612,7 @@ export default function PacksPage() {
         {selectedPack ? (
           <SelectChips
             items={chapterItems}
-            value={selectedChapter}
+            value={selectedChapterId}
             onChange={onChangeChapter}
             getKey={(x) => x.id}
             getLabel={(x) => x.label}

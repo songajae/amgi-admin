@@ -55,9 +55,21 @@ export const updateUser = (id, data) => setDoc(byId("users", id), data, { merge:
 export const deleteUser = (id) => deleteDoc(byId("users", id));
 
 // Word Packs
-export const getWordPacks = async () => safeGetDocs(col("word_packs"));
-export const addWordPack = (data) => addDoc(col("word_packs"), data);
-export const updateWordPack = (id, data) => setDoc(byId("word_packs", id), data, { merge: true });
+export const getWordPacks = async () => {
+  const list = await safeGetDocs(col("word_packs"));
+  return list.map((item) => {
+    const wordPackId = item.wordPackId ?? item.id;
+    return { ...item, wordPackId, id: item.id };
+  });
+};
+export const addWordPack = async (data) => {
+  const wordPackId = uid("wordPack");
+  const docRef = byId("word_packs", wordPackId);
+  await setDoc(docRef, { ...data, wordPackId });
+  return { id: wordPackId, wordPackId };
+};
+export const updateWordPack = (id, data) =>
+  setDoc(byId("word_packs", id), { ...data, wordPackId: id }, { merge: true });
 export const deleteWordPack = (id) => deleteDoc(byId("word_packs", id));
 
 // Chapters (하위 컬렉션)
@@ -65,8 +77,9 @@ export const getChaptersByPack = async (packId) => {
   const chaptersCol = collection(db, `word_packs/${packId}/chapters`);
   const list = await safeGetDocs(query(chaptersCol));
   const normalized = list.map((item) => {
-    const chapter = item.chapter ?? item.chapterId ?? item.id;
-    return { ...item, id: chapter, chapter, chapterId: chapter };
+    const chapterId = item.chapterId ?? item.id;
+    const chapter = item.chapter ?? item.chapterKey ?? item.id;
+    return { ...item, id: chapterId, chapter, chapterId };
   });
   return normalized.sort((a, b) => {
     const ao = a.order ?? 9999;
@@ -75,15 +88,15 @@ export const getChaptersByPack = async (packId) => {
     return (a.chapter || "").localeCompare(b.chapter || "");
   });
 };
-export const upsertChapter = async (packId, chapter, data) => {
+export const upsertChapter = async (packId, chapterId, data = {}) => {
   const chaptersCol = collection(db, `word_packs/${packId}/chapters`);
-  if (!chapter) throw new Error("chapter is required");
-  await setDoc(doc(chaptersCol, chapter), { ...data, chapter, chapterId: chapter }, { merge: true });
-  return chapter;
+  const resolvedId = chapterId || uid("chapter");
+  await setDoc(doc(chaptersCol, resolvedId), { ...data, chapterId: resolvedId }, { merge: true });
+  return resolvedId;
 };
-export const deleteChapter = async (packId, chapter) => {
+export const deleteChapter = async (packId, chapterId) => {
   const chaptersCol = collection(db, `word_packs/${packId}/chapters`);
-  await deleteDoc(doc(chaptersCol, chapter));
+  await deleteDoc(doc(chaptersCol, chapterId));
 };
 
 // Videos
