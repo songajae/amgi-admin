@@ -6,16 +6,19 @@ import { getAdmins, addAdmin, updateAdmin, deleteAdmin } from "../lib/firestore"
 export default function AdminsPage() {
   const [admins, setAdmins] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   // Firestore에서 데이터를 다시 불러오는 함수
   const fetchAdmins = async () => {
     setLoading(true);
+    setError("");
     try {
       const adminList = await getAdmins();
       setAdmins(adminList);
     } catch (error) {
       console.error("관리자 목록을 불러오지 못했습니다.", error);
       setAdmins([]);
+      setError("관리자 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.");
     } finally {
       setLoading(false);
     }
@@ -33,8 +36,13 @@ export default function AdminsPage() {
     const password = prompt("비밀번호", "0000");
     if (!password) return;
     
-    await addAdmin({ username, password });
-    fetchAdmins(); // 목록 새로고침
+    try {
+      await addAdmin({ username, password });
+      fetchAdmins(); // 목록 새로고침
+    } catch (error) {
+      console.error("관리자 추가에 실패했습니다.", error);
+      setError("관리자를 추가하지 못했습니다. 잠시 후 다시 시도해주세요.");
+    }
   };
 
   // 변경 버튼 클릭 시
@@ -42,16 +50,26 @@ export default function AdminsPage() {
     const username = prompt("아이디 변경", admin.username) || admin.username;
     const password = prompt("비밀번호 변경", admin.password) || admin.password;
     
-    await updateAdmin(admin.id, { username, password });
-    fetchAdmins(); // 목록 새로고침
+    try {
+      await updateAdmin(admin.id, { username, password });
+      fetchAdmins(); // 목록 새로고침
+    } catch (error) {
+      console.error("관리자 정보를 수정하지 못했습니다.", error);
+      setError("관리자 정보를 수정하지 못했습니다. 잠시 후 다시 시도해주세요.");
+    }
   };
 
   // 삭제 버튼 클릭 시
   const handleDeleteAdmin = async (admin) => {
     if (!window.confirm(`'${admin.username}' 관리자를 삭제하시겠습니까?`)) return;
-    
-    await deleteAdmin(admin.id);
-    fetchAdmins(); // 목록 새로고침
+
+    try {
+      await deleteAdmin(admin.id);
+      fetchAdmins(); // 목록 새로고침
+    } catch (error) {
+      console.error("관리자 삭제에 실패했습니다.", error);
+      setError("관리자를 삭제하지 못했습니다. 잠시 후 다시 시도해주세요.");
+    }
   };
 
   return (
@@ -63,6 +81,16 @@ export default function AdminsPage() {
         </button>
       </div>
       <LoadingBar show={loading} />
+            {error && (
+        <div className="mb-4 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+          {error}
+        </div>
+      )}
+      {!loading && !error && admins.length === 0 && (
+        <div className="rounded border border-gray-200 bg-white p-4 text-sm text-gray-500">
+          등록된 관리자가 없습니다.
+        </div>
+      )}
       <div className="space-y-2">
         {admins.map((a) => (
           <div key={a.id} className="border rounded p-3 flex items-center justify-between bg-white shadow-sm">

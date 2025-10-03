@@ -7,7 +7,7 @@ import { db } from "./firebase";
 import {
   collection,
   getDocs,
-  getDoc,            // [2025-09-27 PATCH]
+  getDoc, // [2025-09-27 PATCH]
   doc,
   setDoc,
   addDoc,
@@ -22,9 +22,19 @@ const col = (name) => collection(db, name);
 const byId = (name, id) => doc(db, name, id);
 export const uid = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
+// Firestore 호출이 너무 오래 걸릴 때를 대비한 안전장치
+const FIRESTORE_TIMEOUT_MS = 8000;
+const withTimeout = (promise, ms = FIRESTORE_TIMEOUT_MS, message = "Firestore request timed out") =>
+  Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(message)), ms)
+    ),
+  ]);
+
 // 안전 래퍼
 async function safeGetDocs(colRefOrQuery) {
-  const snap = await getDocs(colRefOrQuery);
+  const snap = await withTimeout(getDocs(colRefOrQuery));
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
@@ -35,8 +45,8 @@ export const updateAdmin = (id, data) => setDoc(byId("admins", id), data, { merg
 export const deleteAdmin = (id) => deleteDoc(byId("admins", id));
 
 // Users
-export const getUsers = async () => safeGetDocs(col("users"));
-export const getUserById = async (id) => {               // [2025-09-27 PATCH]
+export const getUserById = async (id) => {
+  const snap = await withTimeout(getDoc(byId("users", id))); // [2025-09-27 PATCH]
   const snap = await getDoc(byId("users", id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 };
@@ -84,10 +94,10 @@ export const deleteVideo = (id) => deleteDoc(byId("packsYoutube", id));
 
 // Devices (user_devices)
 export const getDevicesByUser = async (userId) => {
-  const qy = query(col("user_devices"), where("userId", "==", userId));
+  const qy = query(col("device_registry"), where("userId", "==", userId));  // user_devices → device_registry
   return safeGetDocs(qy);
 };
-export const deleteDevice = async (docId) => deleteDoc(byId("user_devices", docId));
+export const deleteDevice = async (docId) => deleteDoc(byId("device_registry", docId));
 
 /* ============================================
    [2025-09-27 PATCH]
