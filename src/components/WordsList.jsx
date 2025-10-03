@@ -4,6 +4,8 @@
 // ==============================
 
 import React, { useMemo, useState } from "react";
+import PaginationFooter from "./common/PaginationFooter";
+import { STRINGS } from "../constants/strings";
 
 export default function WordsList({ words = [], onAdd, onEdit, onDelete }) {
   const [query, setQuery] = useState("");
@@ -41,21 +43,19 @@ export default function WordsList({ words = [], onAdd, onEdit, onDelete }) {
   // 페이지네이션
   const total = filtered.length;
   const lastPage = Math.max(1, Math.ceil(total / perPage));
-  const safePage = Math.min(page, lastPage);
+  const safePage = Math.min(Math.max(1, page), lastPage);
   const slice = filtered.slice((safePage - 1) * perPage, safePage * perPage);
 
-  const goto = (p) => setPage(Math.min(Math.max(1, p), lastPage));
-
-  return (
+    return (
     <div className="mt-4 border rounded-md bg-white">
       {/* 헤더 */}
       <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between px-4 py-3 border-b">
-        <h3 className="font-semibold">단어 리스트</h3>
+         <h3 className="font-semibold">{STRINGS.packs.wordsList.title}</h3>
         <div className="flex items-center gap-3 w-full md:w-auto">
           <input
             value={query}
             onChange={(e) => { setQuery(e.target.value); setPage(1); }}
-            placeholder="단어/품사/뜻/예문 검색"
+            placeholder={STRINGS.packs.wordsList.searchPlaceholder}
             className="flex-1 md:w-64 border rounded-md px-3 py-1"
           />
           <select
@@ -63,17 +63,18 @@ export default function WordsList({ words = [], onAdd, onEdit, onDelete }) {
             onChange={(e) => { setPerPage(Number(e.target.value)); setPage(1); }}
             className="border rounded-md px-3 py-1"
           >
-            <option value={10}>10명씩 보기</option>
-            <option value={20}>20명씩 보기</option>
-            <option value={50}>50명씩 보기</option>
-            <option value={100}>100명씩 보기</option>
+            {STRINGS.packs.wordsList.perPageOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
           <button
             onClick={onAdd}
             className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
             type="button"
           >
-            추가
+          {STRINGS.common.buttons.add}
           </button>
         </div>
       </div>
@@ -81,7 +82,7 @@ export default function WordsList({ words = [], onAdd, onEdit, onDelete }) {
       {/* 목록 */}
       {slice.length === 0 ? (
         <div className="px-4 py-8 text-gray-500 text-sm">
-          결과가 없습니다.
+          {STRINGS.common.messages.noResults}
         </div>
       ) : (
         <ul className="divide-y">
@@ -114,14 +115,14 @@ export default function WordsList({ words = [], onAdd, onEdit, onDelete }) {
                       onClick={() => onEdit && onEdit((safePage - 1) * perPage + groupIdx)}
                       type="button"
                     >
-                      수정
+                      {STRINGS.common.buttons.edit}
                     </button>
                     <button
                       className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700"
                       onClick={() => onDelete && onDelete((safePage - 1) * perPage + groupIdx)}
                       type="button"
                     >
-                      삭제
+                      {STRINGS.common.buttons.delete}
                     </button>
                   </div>
                 </div>
@@ -131,15 +132,13 @@ export default function WordsList({ words = [], onAdd, onEdit, onDelete }) {
         </ul>
       )}
 
-      {/* 푸터 */}
-      <div className="flex items-center justify-end gap-3 px-4 py-2 border-t text-sm text-gray-600">
-        <span>{(safePage - 1) * perPage + 1}-{Math.min(safePage * perPage, total)} / 총 {total}</span>
-        <div className="flex items-center gap-2">
-          <button className="px-2 py-1 border rounded hover:bg-gray-50" onClick={() => goto(safePage - 1)} disabled={safePage === 1}>이전</button>
-          <span>페이지 {safePage} / {lastPage}</span>
-          <button className="px-2 py-1 border rounded hover:bg-gray-50" onClick={() => goto(safePage + 1)} disabled={safePage === lastPage}>다음</button>
-        </div>
-      </div>
+      <PaginationFooter
+        page={page}
+        perPage={perPage}
+        total={total}
+        onPageChange={setPage}
+        className="px-4 py-2 border-t"
+      />
     </div>
   );
 }

@@ -14,7 +14,7 @@ import {
   deleteDoc,
   query,
   where,
-  limit,             // [2025-09-27 PATCH]
+
 } from "firebase/firestore";
 
 // 공용
@@ -54,33 +54,33 @@ export const deleteWordPack = (id) => deleteDoc(byId("word_packs", id));
 export const getChaptersByPack = async (packId) => {
   const chaptersCol = collection(db, `word_packs/${packId}/chapters`);
   const list = await safeGetDocs(query(chaptersCol));
-  return list.sort((a, b) => {
+  const normalized = list.map((item) => {
+    const chapter = item.chapter ?? item.chapterId ?? item.id;
+    return { ...item, id: chapter, chapter };
+  });
+  return normalized.sort((a, b) => {
     const ao = a.order ?? 9999;
     const bo = b.order ?? 9999;
     if (ao !== bo) return ao - bo;
-    return (a.chapterId || "").localeCompare(b.chapterId || "");
+    return (a.chapter || "").localeCompare(b.chapter || "");
   });
 };
-export const upsertChapter = async (packId, chapterId, data) => {
+export const upsertChapter = async (packId, chapter, data) => {
   const chaptersCol = collection(db, `word_packs/${packId}/chapters`);
-  if (chapterId) {
-    await setDoc(doc(chaptersCol, chapterId), { ...data, chapterId }, { merge: true });
-    return chapterId;
-  } else {
-    const ref = await addDoc(chaptersCol, data);
-    return ref.id;
-  }
+  if (!chapter) throw new Error("chapter is required");
+  await setDoc(doc(chaptersCol, chapter), { ...data, chapter }, { merge: true });
+  return chapter;
 };
-export const deleteChapter = async (packId, chapterId) => {
+export const deleteChapter = async (packId, chapter) => {
   const chaptersCol = collection(db, `word_packs/${packId}/chapters`);
-  await deleteDoc(doc(chaptersCol, chapterId));
+  await deleteDoc(doc(chaptersCol, chapter));
 };
 
 // Videos
-export const getVideos = async () => safeGetDocs(col("custom_videos"));
-export const addVideo = (data) => addDoc(col("custom_videos"), data);
-export const updateVideo = (id, data) => setDoc(byId("custom_videos", id), data, { merge: true });
-export const deleteVideo = (id) => deleteDoc(byId("custom_videos", id));
+export const getVideos = async () => safeGetDocs(col("packsYoutube"));
+export const addVideo = (data) => addDoc(col("packsYoutube"), data);
+export const updateVideo = (id, data) => setDoc(byId("packsYoutube", id), data, { merge: true });
+export const deleteVideo = (id) => deleteDoc(byId("packsYoutube", id));
 
 // Devices (user_devices)
 export const getDevicesByUser = async (userId) => {

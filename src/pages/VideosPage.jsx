@@ -9,6 +9,7 @@ import LevelBar from "../components/packs/LevelBar";
 import SelectChips from "../components/packs/SelectChips";
 import VideoEditorModal from "../components/videos/VideoEditorModal";
 import TruncateText from "../components/common/TruncateText";
+import PaginationFooter from "../components/common/PaginationFooter";
 import {
   getWordPacks,
   getChaptersByPack,
@@ -17,10 +18,12 @@ import {
   updateVideo,
   deleteVideo,
 } from "../lib/firestore";
+import { STRINGS } from "../constants/strings";
+import { ytThumbUrl } from "../utils/youtube";
 
 const normalize = (s) => (s || "").toString().trim();
-const contains = (hay, needle) => normalize(hay).toLowerCase().includes(needle);
-const ytThumbUrl = (id) => (id ? `https://img.youtube.com/vi/${id}/default.jpg` : "");
+const contains = (hay, needle) =>
+  normalize(hay).toLowerCase().includes(normalize(needle).toLowerCase());
 
 const withChapterName = (chapter) => ({
   ...chapter,
@@ -127,6 +130,15 @@ function VideosPage() {
     return rows;
   }, [packs, chaptersByPack]);
 
+  const videoByChapterId = useMemo(() => {
+    const map = new Map();
+    for (const video of videos) {
+      if (!video?.chapterId) continue;
+      map.set(video.chapterId, video);
+    }
+    return map;
+  }, [videos]);
+
   const filteredRows = useMemo(() => {
     let r = allChapterRows;
     if (lang) r = r.filter((x) => x.language === lang);
@@ -142,7 +154,7 @@ function VideosPage() {
           contains(x.language, qx)
       );
     }
-    if (onlyUnlinked) r = r.filter((x) => !videos.find((v) => v.chapterId === x.chapterId));
+    if (onlyUnlinked) r = r.filter((x) => !videoByChapterId.get(x.chapterId));
     r = r.sort((a, b) => {
       const L = a.language.localeCompare(b.language);
       if (L) return L;
@@ -151,16 +163,15 @@ function VideosPage() {
       return a.chapterId.localeCompare(b.chapterId);
     });
     return r;
-  }, [allChapterRows, lang, packId, chapterId, q, onlyUnlinked, videos]);
+  }, [allChapterRows, lang, packId, chapterId, q, onlyUnlinked, videoByChapterId]);
 
   const total = filteredRows.length;
   const lastPage = Math.max(1, Math.ceil(total / perPage));
-  const safePage = Math.min(page, lastPage);
+  const safePage = Math.min(Math.max(1, page), lastPage);
   const pageSlice = filteredRows.slice((safePage - 1) * perPage, safePage * perPage);
-  const goto = (p) => setPage(Math.min(Math.max(1, p), lastPage));
   useEffect(() => setPage(1), [q, lang, packId, chapterId, perPage, onlyUnlinked]);
 
-  const getVideoByChapter = (cid) => videos.find((v) => v.chapterId === cid);
+  const getVideoByChapter = (cid) => videoByChapterId.get(cid);
 
   const openEditor = (row) => {
     const v = getVideoByChapter(row.chapterId) || null;
@@ -201,7 +212,7 @@ function VideosPage() {
 
   const deleteEditor = async () => {
     if (!editorVideo) return;
-    if (!window.confirm(`'${editorVideo.title}' 영상을 삭제할까요?`)) return;
+    if (!window.confirm(STRINGS.videos.list.deleteConfirm(editorVideo.title))) return;
     await deleteVideo(editorVideo.id);
     const list = await getVideos();
     setVideos(list.map(withVideoChapterName));
@@ -220,19 +231,19 @@ function VideosPage() {
 
       {/* 필터 바 */}
       <div className="grid grid-cols-1 gap-3">
-        <LevelBar title="언어 종류" color="bg-orange-500">
+        <LevelBar title={STRINGS.videos.filters.language} color="bg-orange-500">
           <SelectChips items={languageChips} value={lang} onChange={toggleLang} getKey={(x) => x.id} getLabel={(x) => x.label} />
         </LevelBar>
 
-        <LevelBar title="언어팩 종류" color="bg-amber-300">
+        <LevelBar title={STRINGS.videos.filters.pack} color="bg-amber-300">
           {lang ? (
             <SelectChips items={packChips} value={packId} onChange={togglePack} getKey={(x) => x.id} getLabel={(x) => x.label} />
           ) : (
-            <span className="text-sm text-gray-500">먼저 언어를 선택하세요.</span>
+            <span className="text-sm text-gray-500">{STRINGS.videos.filters.selectLanguageFirst}</span>
           )}
         </LevelBar>
 
-        <LevelBar title="챕터" color="bg-amber-200">
+        <LevelBar title={STRINGS.videos.filters.chapter} color="bg-amber-200">
           {packId ? (
             <SelectChips
               items={chapterItems}
@@ -242,7 +253,7 @@ function VideosPage() {
               getLabel={(x) => x.label}
             />
           ) : (
-            <span className="text-sm text-gray-500">먼저 언어팩을 선택하세요.</span>
+            <span className="text-sm text-gray-500">{STRINGS.videos.filters.selectPackFirst}</span>
           )}
         </LevelBar>
       </div>
@@ -250,28 +261,42 @@ function VideosPage() {
       {/* 리스트 */}
       <div className="mt-4 border rounded-md bg-white">
         <div className="px-4 py-3 border-b flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <h2 className="text-xl font-bold">영상 리스트</h2>
+          <h2 className="text-xl font-bold">{STRINGS.videos.list.title}</h2>
           <div className="flex items-center gap-2 w-full md:w-auto">
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="팩/챕터/언어/제목 검색" className="flex-1 md:w-72 border rounded-md px-3 py-1" />
-            <select value={perPage} onChange={(e) => setPerPage(Number(e.target.value))} className="border rounded-md px-3 py-1">
-              <option value={10}>10개씩 보기</option>
-              <option value={20}>20개씩 보기</option>
-              <option value={50}>50개씩 보기</option>
-              <option value={100}>100개씩 보기</option>
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder={STRINGS.videos.list.searchPlaceholder}
+              className="flex-1 md:w-72 border rounded-md px-3 py-1"
+            />
+            <select
+              value={perPage}
+              onChange={(e) => setPerPage(Number(e.target.value))}
+              className="border rounded-md px-3 py-1"
+            >
+              {STRINGS.videos.list.perPageOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
-            <button onClick={() => setOnlyUnlinked((v) => !v)} className={`px-3 py-1 rounded text-white ${onlyUnlinked ? "bg-green-700 hover:bg-green-800" : "bg-green-600 hover:bg-green-700"}`}>
-              {onlyUnlinked ? "전체 보기" : "영상 미연결만"}
+             <button
+              onClick={() => setOnlyUnlinked((v) => !v)}
+              className={`px-3 py-1 rounded text-white ${onlyUnlinked ? "bg-green-700 hover:bg-green-800" : "bg-green-600 hover:bg-green-700"}`}
+            >
+              {onlyUnlinked ? STRINGS.videos.list.showAll : STRINGS.videos.list.onlyUnlinked}
             </button>
             <button
               onClick={() => {
-                if (!chapterId) return alert("먼저 챕터를 선택하거나, 행의 '수정' 버튼을 사용하세요.");
+                if (!chapterId)
+                  return alert(STRINGS.videos.list.alerts.selectChapterFirst(STRINGS.common.buttons.edit));
                 const row = filteredRows.find((r) => r.chapterId === chapterId);
-                if (!row) return alert("선택한 챕터를 찾을 수 없습니다.");
+                if (!row) return alert(STRINGS.videos.list.alerts.chapterNotFound);
                 openEditor(row);
               }}
               className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700"
             >
-              추가
+              {STRINGS.videos.list.addButton}
             </button>
           </div>
         </div>
@@ -280,23 +305,28 @@ function VideosPage() {
           <table className="min-w-full text-sm table-fixed">
             <thead className="bg-gray-50 text-gray-600">
               <tr className="text-left">
-                <th className="px-4 py-3 w-[22%]">언어팩-챕터</th>
-                <th className="px-2 py-3 w-[72px]">썸네일</th>
-                <th className="px-3 py-3 w-[48%]">제목</th>
-                <th className="px-3 py-3 w-[90px]">자막</th>
-                <th className="px-3 py-3 w-[140px] text-center">액션</th>
+                <th className="px-4 py-3 w-[22%]">{STRINGS.videos.list.columns.packChapter}</th>
+                <th className="px-2 py-3 w-[72px]">{STRINGS.videos.list.columns.thumbnail}</th>
+                <th className="px-3 py-3 w-[48%]">{STRINGS.videos.list.columns.title}</th>
+                <th className="px-3 py-3 w-[90px]">{STRINGS.videos.list.columns.subtitles}</th>
+                <th className="px-3 py-3 w-[140px] text-center">{STRINGS.videos.list.columns.actions}</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {pageSlice.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-10 text-gray-500 text-center" colSpan={5}>결과가 없습니다.</td>
+                  <td className="px-4 py-10 text-gray-500 text-center" colSpan={5}>
+                    {STRINGS.common.messages.noResults}
+                  </td>
                 </tr>
               ) : (
                 pageSlice.map((row) => {
                   const v = videos.find((vv) => vv.chapterId === row.chapterId) || null;
                   const title = v?.title || "—";
-                  const hasSubs = v && (v.subtitles?.length > 0 || v.hasSubtitles || (v.subtitleCount || 0) > 0) ? "삽입" : "미삽입";
+                  const hasSubs =
+                    v && (v.subtitles?.length > 0 || v.hasSubtitles || (v.subtitleCount || 0) > 0)
+                      ? STRINGS.videos.list.subtitleStatus.exists
+                      : STRINGS.videos.list.subtitleStatus.missing;
                   const thumb = ytThumbUrl(v?.videoId);
 
                   return (
@@ -304,7 +334,11 @@ function VideosPage() {
                       <td className="pl-4 pr-2 py-3"><div className="font-semibold">{row.packName} - {row.chapterTitle}</div></td>
                       <td className="pl-2 pr-3 py-3">
                         <div className="w-14 h-9 border rounded overflow-hidden bg-gray-100 flex items-center justify-center">
-                          {thumb ? <img src={thumb} alt="" className="w-full h-auto" /> : <span className="text-[11px] text-gray-500">미연결</span>}
+                          {thumb ? (
+                            <img src={thumb} alt="" className="w-full h-auto" />
+                          ) : (
+                            <span className="text-[11px] text-gray-500">{STRINGS.videos.list.subtitleStatus.thumbnailPlaceholder}</span>
+                          )}
                         </div>
                       </td>
                       <td className="px-3 py-3">
@@ -315,22 +349,31 @@ function VideosPage() {
                           href={v?.videoId ? `https://www.youtube.com/watch?v=${v.videoId}` : undefined}
                         />
                       </td>
-                      <td className="px-3 py-3"><span className={hasSubs === "삽입" ? "text-emerald-700 font-medium" : "text-gray-500"}>{hasSubs}</span></td>
+                      <td className="px-3 py-3">
+                        <span className={hasSubs === STRINGS.videos.list.subtitleStatus.exists ? "text-emerald-700 font-medium" : "text-gray-500"}>
+                          {hasSubs}
+                        </span>
+                      </td>
                       <td className="px-3 py-3">
                         <div className="flex items-center justify-center gap-2">
-                          <button className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600" onClick={() => openEditor(row)}>{v ? "수정" : "추가"}</button>
+                          <button
+                            className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600"
+                            onClick={() => openEditor(row)}
+                          >
+                            {v ? STRINGS.common.buttons.edit : STRINGS.common.buttons.add}
+                          </button>
                           <button
                             className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 disabled:opacity-50"
                             onClick={async () => {
-                              if (!v) return alert("연결된 영상이 없습니다.");
-                              if (!window.confirm(`'${v.title}' 영상을 삭제할까요?`)) return;
+                              if (!v) return alert(STRINGS.videos.list.alerts.videoMissing);
+                              if (!window.confirm(STRINGS.videos.list.deleteConfirm(v.title))) return;
                               await deleteVideo(v.id);
                               const list = await getVideos();
                               setVideos(list.map(withVideoChapterName));
                             }}
                             disabled={!v}
                           >
-                            삭제
+                            {STRINGS.common.buttons.delete}
                           </button>
                         </div>
                       </td>
@@ -342,14 +385,7 @@ function VideosPage() {
           </table>
         </div>
 
-        <div className="px-4 py-2 border-t text-sm text-gray-600 flex items-center justify-end gap-3">
-          <span>{(safePage - 1) * perPage + (total ? 1 : 0)}-{Math.min(safePage * perPage, total)} / 총 {total}</span>
-          <div className="flex items-center gap-2">
-            <button className="px-2 py-1 border rounded hover:bg-gray-50 disabled:opacity-40" onClick={() => goto(safePage - 1)} disabled={safePage === 1}>이전</button>
-            <span>페이지 {safePage} / {lastPage}</span>
-            <button className="px-2 py-1 border rounded hover:bg-gray-50 disabled:opacity-40" onClick={() => goto(safePage + 1)} disabled={safePage === lastPage}>다음</button>
-          </div>
-        </div>
+        <PaginationFooter page={page} perPage={perPage} total={total} onPageChange={setPage} className="px-4 py-2 border-t" />
       </div>
 
       <VideoEditorModal open={editorOpen} row={editorRow} video={editorVideo} onSave={saveEditor} onDelete={deleteEditor} onClose={closeEditor} />

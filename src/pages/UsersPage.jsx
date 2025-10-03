@@ -11,6 +11,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import LoadingBar from "../components/LoadingBar";
+import PaginationFooter from "../components/common/PaginationFooter";
 import UserFormModal from "../components/users/UserFormModal";
 import DeviceManager from "../components/videos/DeviceManager";
 import {
@@ -21,6 +22,7 @@ import {
   getWordPacks,
   setUserOwnedPacks,
 } from "../lib/firestore";
+import { STRINGS } from "../constants/string
 
 // 보유팩 라벨 유틸
 function makePackLabel(pack) {
@@ -84,7 +86,7 @@ export default function UsersPage() {
 
   const total = filtered.length;
   const lastPage = Math.max(1, Math.ceil(total / perPage));
-  const safePage = Math.min(page, lastPage);
+  const safePage = Math.min(Math.max(1, page), lastPage);
   const slice = filtered.slice((safePage - 1) * perPage, safePage * perPage);
 
   const openAdd = () => {
@@ -103,10 +105,24 @@ export default function UsersPage() {
 
   const handleSave = async (mode, data, idWhenEdit) => {
     if (mode === "add") {
-      await addUser({ displayName: data.displayName, email: data.email, ownedPacks: data.ownedPacks });
+      const password = data.password && data.password.trim() ? data.password.trim() : "1234";
+      await addUser({
+        displayName: data.displayName,
+        email: data.email,
+        ownedPacks: data.ownedPacks,
+        password,
+      });
       // 새 유저의 purchases 동기화는 필요 시 추가
     } else {
-      await updateUser(idWhenEdit, { displayName: data.displayName, email: data.email, ownedPacks: data.ownedPacks });
+      const updatePayload = {
+        displayName: data.displayName,
+        email: data.email,
+        ownedPacks: data.ownedPacks,
+      };
+      if (data.password && data.password.trim()) {
+        updatePayload.password = data.password.trim();
+      }
+      await updateUser(idWhenEdit, updatePayload);
       await setUserOwnedPacks(idWhenEdit, data.ownedPacks || []);
     }
     await fetchAll();
@@ -114,7 +130,7 @@ export default function UsersPage() {
   };
 
   const handleDelete = async (id) => {
-    if (!window.confirm("해당 유저를 삭제하시겠습니까?")) return;
+    if (!window.confirm(STRINGS.users.confirmDelete)) return;
     await deleteUser(id);
     await fetchAll();
     setSelectedUser((prev) => (prev && prev.id === id ? null : prev));
@@ -140,11 +156,11 @@ export default function UsersPage() {
   return (
     <div className="p-4">
       <div className="flex items-center justify-between mb-3">
-        <h1 className="text-2xl font-bold">유저 관리</h1>
+        <h1 className="text-2xl font-bold">{STRINGS.users.title}</h1>
         <div className="flex items-center gap-2">
           <input
             className="border rounded px-3 py-2 w-64"
-            placeholder="검색 (이메일 / 이름)"
+            placeholder={STRINGS.users.searchPlaceholder}
             value={q}
             onChange={(e) => { setQ(e.target.value); setPage(1); }}
           />
@@ -153,17 +169,18 @@ export default function UsersPage() {
             value={perPage}
             onChange={(e) => { setPerPage(Number(e.target.value)); setPage(1); }}
           >
-            <option value={10}>10개</option>
-            <option value={20}>20개</option>
-            <option value={50}>50개</option>
-            <option value={100}>100개</option>
+            {STRINGS.users.perPageOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
           <button
             ref={addBtnRef}
             className="px-3 py-2 rounded bg-blue-600 text-white"
             onClick={openAdd}
           >
-            유저 추가
+            {STRINGS.users.addButton}
           </button>
         </div>
       </div>
@@ -174,10 +191,10 @@ export default function UsersPage() {
         <table className="min-w-full text-sm">
           <thead className="bg-gray-50 text-gray-600">
             <tr className="text-left">
-              <th className="px-4 py-2">이름</th>
-              <th className="px-4 py-2">이메일</th>
-              <th className="px-4 py-2">보유 팩</th>
-              <th className="px-4 py-2 text-center">액션</th>
+             <th className="px-4 py-2">{STRINGS.users.table.name}</th>
+              <th className="px-4 py-2">{STRINGS.users.table.email}</th>
+              <th className="px-4 py-2">{STRINGS.users.table.packs}</th>
+              <th className="px-4 py-2 text-center">{STRINGS.users.table.actions}</th>
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -198,13 +215,13 @@ export default function UsersPage() {
                         className="px-2 py-1 border rounded hover:bg-gray-100"
                         onClick={(e) => { e.stopPropagation(); openEdit(u, e.currentTarget); }}
                       >
-                        수정
+                        {STRINGS.common.buttons.edit}
                       </button>
                       <button
                         className="px-2 py-1 border rounded bg-red-600 text-white hover:bg-red-700"
                         onClick={(e) => { e.stopPropagation(); handleDelete(u.id); }}
                       >
-                        삭제
+                        {STRINGS.common.buttons.delete}
                       </button>
                     </div>
                   </td>
@@ -214,7 +231,7 @@ export default function UsersPage() {
             {slice.length === 0 && !loading && (
               <tr>
                 <td className="px-4 py-10 text-center text-gray-500" colSpan={4}>
-                  결과가 없습니다.
+                  {STRINGS.common.messages.noResults}
                 </td>
               </tr>
             )}
@@ -222,29 +239,13 @@ export default function UsersPage() {
         </table>
       </div>
 
-      {/* 페이지네이션 */}
-      <div className="flex items-center justify-end gap-3 px-1 py-3 text-sm text-gray-600">
-        <span>
-          {(safePage - 1) * perPage + 1}-{Math.min(safePage * perPage, total)} / 총 {total}
-        </span>
-        <div className="flex items-center gap-2">
-          <button
-            className="px-2 py-1 border rounded hover:bg-gray-50"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={safePage === 1}
-          >
-            이전
-          </button>
-          <span>페이지 {safePage} / {lastPage}</span>
-          <button
-            className="px-2 py-1 border rounded hover:bg-gray-50"
-            onClick={() => setPage((p) => Math.min(lastPage, p + 1))}
-            disabled={safePage === lastPage}
-          >
-            다음
-          </button>
-        </div>
-      </div>
+      <PaginationFooter
+        page={page}
+        perPage={perPage}
+        total={total}
+        onPageChange={setPage}
+        className="px-1 py-3"
+      />
 
       {/* 모달 */}
       {showForm && (
@@ -261,7 +262,7 @@ export default function UsersPage() {
 
       {/* 하단 DeviceManager: 선택된 유저만으로 자동 표시 */}
       <div ref={deviceSectionRef} className="mt-8 space-y-3">
-        <h2 className="text-xl font-bold">사용자 기기 관리</h2>
+        <h2 className="text-xl font-bold">{STRINGS.users.deviceManagerTitle}</h2>
         <DeviceManager selectedUser={selectedUser} />
       </div>
     </div>

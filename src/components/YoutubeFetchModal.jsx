@@ -13,8 +13,8 @@ const YT_KEY = process.env.REACT_APP_YT_KEY || "YOUR_YOUTUBE_API_KEY";
 export default function YoutubeFetchModal({
   open,
   onClose,
-  chapterId,            // 기본 연결 챕터(doc id)
-  setChapterId,         // 외부 상태 업데이트
+  chapter,              // 기본 연결 챕터(doc id)
+  setChapter,           // 외부 상태 업데이트
   packs,                // 보이는 팩 목록
   chaptersByPack,       // { packId: Chapter[] }
   selectedPackId,       // 현재 선택된 팩(있을수도/없을수도)
@@ -29,9 +29,9 @@ export default function YoutubeFetchModal({
 
   // 기본 챕터 연결
   useEffect(() => {
-    if (!chapterId && selectedPackId) {
+    if (!chapter && selectedPackId) {
       const first = (chaptersByPack[selectedPackId] || [])[0];
-      if (first) setChapterId(first.id);
+     if (first) setChapter(first.id);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPackId]);
@@ -114,7 +114,7 @@ export default function YoutubeFetchModal({
   };
 
   const handleSave = () => {
-    if (!chapterId) {
+    if (!chapter) {
       alert("연결할 챕터를 선택해주세요.");
       return;
     }
@@ -133,7 +133,7 @@ export default function YoutubeFetchModal({
   const packOptions = packs;
   const currentPackId =
     packOptions.find((p) =>
-      (chaptersByPack[p.id] || []).some((ch) => ch.id === chapterId)
+      (chaptersByPack[p.id] || []).some((ch) => ch.id === chapter)
     )?.id || selectedPackId || packOptions[0]?.id;
 
   const currentChapters = currentPackId ? chaptersByPack[currentPackId] || [] : [];
@@ -157,7 +157,7 @@ export default function YoutubeFetchModal({
                 onChange={(e) => {
                   const pid = e.target.value;
                   const first = (chaptersByPack[pid] || [])[0];
-                  setChapterId(first?.id || "");
+                  setChapter(first?.id || "");
                 }}
               >
                 {packOptions.map((p) => (
@@ -171,11 +171,11 @@ export default function YoutubeFetchModal({
               <label className="text-sm text-gray-600">챕터 선택</label>
               <select
                 className="border px-3 py-2 rounded w-full"
-                value={chapterId || ""}
-                onChange={(e) => setChapterId(e.target.value)}
+                value={chapter || ""}
+                onChange={(e) => setChapter(e.target.value)}
               >
                 {currentChapters.map((ch) => {
-                  const name = ch.chapterName || ch.chapterId || "";
+                  const name = ch.chapterName || ch.chapter || "";
                   const prefix = name ? `${name}. ` : "";
                   return (
                     <option key={ch.id} value={ch.id}>
