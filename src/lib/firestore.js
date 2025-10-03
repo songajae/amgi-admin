@@ -45,9 +45,9 @@ export const updateAdmin = (id, data) => setDoc(byId("admins", id), data, { merg
 export const deleteAdmin = (id) => deleteDoc(byId("admins", id));
 
 // Users
+export const getUsers = async () => safeGetDocs(col("users"));
 export const getUserById = async (id) => {
   const snap = await withTimeout(getDoc(byId("users", id))); // [2025-09-27 PATCH]
-  const snap = await getDoc(byId("users", id));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 };
 export const addUser = (data) => addDoc(col("users"), data);
