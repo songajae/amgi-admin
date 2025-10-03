@@ -167,7 +167,7 @@ export default function PacksPage() {
     }
 
     // 아무것도 선택 안 한 경우: 전체 단어
-    if (!selectedLanguage && !selectedPackId && !selectedChapterId) {
+    if (!selectedLanguage && !selectedPackId && !selectedChapter) {
       const all = [];
       for (const p of packs) {
         const chs = chaptersByPack[p.id] || [];

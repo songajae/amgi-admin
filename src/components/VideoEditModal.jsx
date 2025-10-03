@@ -9,7 +9,7 @@ import { useEffect, useMemo, useState } from "react";
 export default function VideoEditModal({
   open,
   onClose,
-  chapterId, // 연결 대상 챕터(doc id)
+  chapter, // 연결 대상 챕터(doc id)
   initial,   // 기존 영상 문서 (없으면 추가)
   onSave,    // (data, videoDocId) => void
 }) {
@@ -61,7 +61,7 @@ export default function VideoEditModal({
       videoId,
       thumbnail,
       captions: parsedCaptions,
-      chapterId, // 연결
+      chapter, // 연결
     };
     onSave?.(data, initial?.id);
   };
