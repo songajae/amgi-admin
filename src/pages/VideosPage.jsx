@@ -22,6 +22,16 @@ const normalize = (s) => (s || "").toString().trim();
 const contains = (hay, needle) => normalize(hay).toLowerCase().includes(needle);
 const ytThumbUrl = (id) => (id ? `https://img.youtube.com/vi/${id}/default.jpg` : "");
 
+const withChapterName = (chapter) => ({
+  ...chapter,
+  chapterName: chapter.chapterName || chapter.chapterId || chapter.title || chapter.id || "",
+});
+
+const withVideoChapterName = (video) => ({
+  ...video,
+  chapterName: video.chapterName || video.chapterId || "",
+});
+
 function VideosPage() {
   const [loading, setLoading] = useState(true);
   const [packs, setPacks] = useState([]);
@@ -50,9 +60,12 @@ function VideosPage() {
       setLoading(true);
       const [packList, videoList] = await Promise.all([getWordPacks(), getVideos()]);
       setPacks(packList);
-      setVideos(videoList);
+      setVideos(videoList.map(withVideoChapterName));
       const init = {};
-      for (const p of packList) init[p.id] = await getChaptersByPack(p.id);
+      for (const p of packList) {
+        const chapters = await getChaptersByPack(p.id);
+        init[p.id] = chapters.map(withChapterName);
+      }
       setChaptersByPack(init);
       setLoading(false);
     })();
@@ -78,16 +91,21 @@ function VideosPage() {
 
   const chapterItems = useMemo(() => {
     if (!packId) return [];
-    return (chaptersByPack[packId] || []).map((c) => ({
-      id: c.chapterId,
-      label: `${c.chapterId}. ${c.title || c.chapterId}`,
-    }));
+    return (chaptersByPack[packId] || []).map((c) => {
+      const name = c.chapterName || c.id || "";
+      const title = c.title || name;
+      const prefix = name ? `${name}. ` : "";
+      return {
+        id: c.id,
+        label: `${prefix}${title}`,
+      };
+    });
   }, [packId, chaptersByPack]);
 
   useEffect(() => {
     if (!packId) return setChapterId("");
     const first = (chaptersByPack[packId] || [])[0];
-    setChapterId(first?.chapterId || "");
+     setChapterId(first?.id || "");
   }, [packId, chaptersByPack]);
 
   const allChapterRows = useMemo(() => {
@@ -100,8 +118,9 @@ function VideosPage() {
           packId: p.id,
           packName: p.name,
           packType: p.type || "free",
-          chapterId: c.chapterId,
-          chapterTitle: c.title || c.chapterId,
+          chapterId: c.id,
+          chapterName: c.chapterName || c.id,
+          chapterTitle: c.title || c.chapterName || c.id,
         });
       }
     }
@@ -116,7 +135,11 @@ function VideosPage() {
     const qx = q.trim().toLowerCase();
     if (qx) {
       r = r.filter(
-        (x) => contains(x.packName, qx) || contains(x.chapterTitle, qx) || contains(x.chapterId, qx) || contains(x.language, qx)
+        (x) =>
+          contains(x.packName, qx) ||
+          contains(x.chapterTitle, qx) ||
+          contains(x.chapterName, qx) ||
+          contains(x.language, qx)
       );
     }
     if (onlyUnlinked) r = r.filter((x) => !videos.find((v) => v.chapterId === x.chapterId));
@@ -158,19 +181,21 @@ function VideosPage() {
         subtitles: subtitlesArray,
         subtitleCount: subtitlesArray.length,
         hasSubtitles: subtitlesArray.length > 0,
+        chapterName: editorRow.chapterName,
       });
     } else {
       await addVideo({
         title,
         videoId,
         chapterId: editorRow.chapterId,
+        chapterName: editorRow.chapterName,
         subtitles: subtitlesArray,
         subtitleCount: subtitlesArray.length,
         hasSubtitles: subtitlesArray.length > 0,
       });
     }
     const list = await getVideos();
-    setVideos(list);
+    setVideos(list.map(withVideoChapterName));
     closeEditor();
   };
 
@@ -179,7 +204,7 @@ function VideosPage() {
     if (!window.confirm(`'${editorVideo.title}' 영상을 삭제할까요?`)) return;
     await deleteVideo(editorVideo.id);
     const list = await getVideos();
-    setVideos(list);
+    setVideos(list.map(withVideoChapterName));
     closeEditor();
   };
 
@@ -301,7 +326,7 @@ function VideosPage() {
                               if (!window.confirm(`'${v.title}' 영상을 삭제할까요?`)) return;
                               await deleteVideo(v.id);
                               const list = await getVideos();
-                              setVideos(list);
+                              setVideos(list.map(withVideoChapterName));
                             }}
                             disabled={!v}
                           >

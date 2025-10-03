@@ -174,11 +174,15 @@ export default function YoutubeFetchModal({
                 value={chapterId || ""}
                 onChange={(e) => setChapterId(e.target.value)}
               >
-                {currentChapters.map((ch) => (
-                  <option key={ch.id} value={ch.id}>
-                    {(ch.chapterId ? `${ch.chapterId}. ` : "") + (ch.title || "")}
-                  </option>
-                ))}
+                {currentChapters.map((ch) => {
+                  const name = ch.chapterName || ch.chapterId || "";
+                  const prefix = name ? `${name}. ` : "";
+                  return (
+                    <option key={ch.id} value={ch.id}>
+                      {`${prefix}${ch.title || name}`}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           </div>
