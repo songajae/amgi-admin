@@ -206,8 +206,7 @@ export default function WordCollectionsPanel({
                                                     word: word.word,
                                                     sense,
                                                   })
-                                               
-  
+                                                }
                                                 className="rounded-md bg-yellow-500 px-3 py-1 text-xs font-semibold text-white hover:bg-yellow-600"
                                               >
                                                 {STRINGS.common.buttons.edit}
