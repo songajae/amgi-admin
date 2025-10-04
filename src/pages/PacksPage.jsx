@@ -81,6 +81,26 @@ function buildWordMeta(pack, chapter) {
   };
 }
 
+function extractChapterNumber(chapter, fallbackIndex = 0) {
+  if (!chapter) return fallbackIndex + 1;
+
+  const { order, chapter: chapterCode, chapterId } = chapter;
+
+  if (typeof order === "number" && Number.isFinite(order)) {
+    if (order >= 1) return order;
+    if (order >= 0) return order + 1;
+  }
+
+  const raw = String(chapterCode || chapterId || "");
+  const matched = raw.match(/(\d+)/);
+  if (matched) {
+    const value = Number(matched[1]);
+    if (Number.isFinite(value)) return value;
+  }
+
+  return fallbackIndex + 1;
+}
+
 export default function PacksPage() {
   const [packs, setPacks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -185,6 +205,7 @@ export default function PacksPage() {
     const pushGroup = (pack, chapter, fallbackIndex = 0) => {
       if (!pack || !chapter) return;
       const chapterId = chapter.chapterId || chapter.chapter || "";
+      const chapterNumber = extractChapterNumber(chapter, fallbackIndex);
       const wordsArr = wordsObjectToArray(chapter?.words || {}).map((word, index) => ({
         ...word,
         __index: index,
@@ -197,6 +218,7 @@ export default function PacksPage() {
         packName: pack.name,
         chapterId,
         chapterTitle: chapter.title || chapter.chapter || chapterId,
+        chapterNumber,
         words: wordsArr,
       });
     };
@@ -228,6 +250,8 @@ export default function PacksPage() {
       if (languageCompare !== 0) return languageCompare;
       const packCompare = (a.packName || "").localeCompare(b.packName || "");
       if (packCompare !== 0) return packCompare;
+      const chapterNumberCompare = (a.chapterNumber || 0) - (b.chapterNumber || 0);
+      if (chapterNumberCompare !== 0) return chapterNumberCompare;
       return (a.chapterTitle || "").localeCompare(b.chapterTitle || "");
     });
   }, [

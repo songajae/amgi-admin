@@ -18,6 +18,33 @@ function matchesQuery(word, query) {
     .some((value) => value.includes(target));
 }
 
+function aggregateWordEntries(entries = [], fallbackWordLabel = "") {
+  const map = new Map();
+
+  entries.forEach((entry, index) => {
+    const trimmedWord = (entry.word || "").trim();
+    const mapKey = trimmedWord.toLowerCase() || `__entry-${index}`;
+
+    if (!map.has(mapKey)) {
+      map.set(mapKey, {
+        key: mapKey,
+        word: trimmedWord || fallbackWordLabel,
+        senses: [],
+      });
+    }
+
+    const target = map.get(mapKey);
+    target.senses.push({
+      pos: entry.pos || "",
+      meaning: entry.meaning || "",
+      example: entry.example || "",
+      __index: typeof entry.__index === "number" ? entry.__index : index,
+    });
+  });
+
+  return Array.from(map.values());
+}
+
 export default function WordCollectionsPanel({
   groups = [],
   activeGroupKey = "",
@@ -85,13 +112,13 @@ export default function WordCollectionsPanel({
               return (
                 <article key={group.key} className="mb-8 last:mb-0">
                   <div className="flex flex-col gap-4 lg:flex-row">
-                    <aside className="shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-700 lg:w-64">
+                    <aside className="shrink-0 rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50 p-4 text-sm leading-6 text-blue-900 shadow-inner lg:w-64">
                       <dl className="space-y-2">
                         <div>
-                          <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          <dt className="text-xs font-semibold uppercase tracking-wide text-blue-600">
                             {STRINGS.packs.wordsPanel.labels.language}
                           </dt>
-                          <dd className="text-base font-semibold text-slate-900">
+                          <dd className="text-base font-semibold text-blue-950">
                             {group.language || STRINGS.packs.wordsPanel.labels.unknown}
                           </dd>
                         </div>
@@ -99,16 +126,27 @@ export default function WordCollectionsPanel({
                           <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                             {STRINGS.packs.wordsPanel.labels.pack}
                           </dt>
-                          <dd className="text-base font-medium text-slate-900">
+                          <dd className="text-base font-semibold text-blue-950">
                             {group.packName || STRINGS.packs.wordsPanel.labels.unknown}
                           </dd>
                         </div>
                         <div>
-                          <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                         <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                             {STRINGS.packs.wordsPanel.labels.chapter}
                           </dt>
-                          <dd className="text-base font-medium text-slate-900">
-                            {group.chapterTitle || STRINGS.packs.wordsPanel.labels.unknown}
+                          <dd className="text-base font-semibold text-blue-950">
+                            {group.chapterNumber ? (
+                              <>
+                                <span className="block text-sm font-semibold uppercase tracking-wide text-blue-700">
+                                  챕터 {group.chapterNumber}.
+                                </span>
+                                <span className="mt-1 block text-base font-semibold text-blue-950">
+                                  {group.chapterTitle || STRINGS.packs.wordsPanel.labels.unknown}
+                                </span>
+                              </>
+                            ) : (
+                              group.chapterTitle || STRINGS.packs.wordsPanel.labels.unknown
+                            )}
                           </dd>
                         </div>
                       </dl>
@@ -121,50 +159,62 @@ export default function WordCollectionsPanel({
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                          {group.filteredWords.map((word, index) => {
-                            const cardKey = `${group.key}-${word.__index ?? index}`;
+                          {aggregateWordEntries(
+                            group.filteredWords,
+                            STRINGS.packs.wordsPanel.labels.unknown
+                          ).map((word, index) => {
+                            const cardKey = `${group.key}-${word.key || index}`;
                             return (
                               <div
                                 key={cardKey}
                                 className="flex h-full flex-col justify-between rounded-lg border border-slate-200 bg-white p-4 shadow-sm transition hover:border-blue-300 hover:shadow-md"
                               >
-                                <div className="mb-3 flex items-start justify-between gap-3">
-                                  <div>
-                                    <h4 className="text-base font-semibold text-slate-900">{word.word}</h4>
-                                    {word.pos && (
-                                      <p className="text-xs font-medium uppercase tracking-wide text-blue-600">
-                                        {word.pos}
-                                      </p>
-                                    )}
-                                  </div>
+                                <div className="space-y-3 text-sm text-slate-700">
+                                  {word.senses.map((sense, senseIndex) => {
+                                    const line = [sense.pos, sense.meaning].filter(Boolean).join(" ").trim();
 
-                                  {isActiveGroup && typeof word.__index === "number" && (
-                                    <div className="flex shrink-0 gap-2">
-                                      <button
-                                        type="button"
-                                        onClick={() => onEdit?.(word.__index)}
-                                        className="rounded-md bg-yellow-500 px-3 py-1 text-xs font-semibold text-white hover:bg-yellow-600"
-                                      >
-                                        {STRINGS.common.buttons.edit}
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => onDelete?.(word.__index)}
-                                        className="rounded-md bg-red-600 px-3 py-1 text-xs font-semibold text-white hover:bg-red-700"
-                                      >
-                                        {STRINGS.common.buttons.delete}
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
+                                    return (
+                                      <div key={`${cardKey}-sense-${senseIndex}`} className="space-y-2">
+                                        <div className="flex items-start justify-between gap-3">
+                                          <p className="whitespace-pre-line">
+                                            {senseIndex === 0 ? (
+                                              <>
+                                                <span className="font-semibold text-slate-900">{word.word}</span>
+                                                {line && <span>{` ${line}`}</span>}
+                                              </>
+                                            ) : (
+                                              <span>{line}</span>
+                                            )}
+                                          </p>
 
-                                <div className="space-y-2 text-sm text-slate-700">
-                                  {word.meaning && <p className="whitespace-pre-line">{word.meaning}</p>}
-                                  {word.example && (
-                                    <p className="rounded-md bg-slate-50 p-3 text-xs text-slate-600">
-                                      {word.example}
-                                    </p>
-                                  )}
+                                          {isActiveGroup && typeof sense.__index === "number" && (
+                                            <div className="flex shrink-0 gap-2">
+                                              <button
+                                                type="button"
+                                                onClick={() => onEdit?.(sense.__index)}
+                                                className="rounded-md bg-yellow-500 px-3 py-1 text-xs font-semibold text-white hover:bg-yellow-600"
+                                              >
+                                                {STRINGS.common.buttons.edit}
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={() => onDelete?.(sense.__index)}
+                                                className="rounded-md bg-red-600 px-3 py-1 text-xs font-semibold text-white hover:bg-red-700"
+                                              >
+                                                {STRINGS.common.buttons.delete}
+                                              </button>
+                                            </div>
+                                          )}
+                                        </div>
+
+                               {sense.example && (
+                                          <p className="rounded-md bg-slate-50 p-3 text-xs text-slate-600">
+                                            <span className="font-semibold text-slate-700">예문</span> {sense.example}
+                                          </p>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </div>
                             );
@@ -192,6 +242,7 @@ WordCollectionsPanel.propTypes = {
       packName: PropTypes.string,
       chapterId: PropTypes.string,
       chapterTitle: PropTypes.string,
+      chapterNumber: PropTypes.number,
       words: PropTypes.arrayOf(
         PropTypes.shape({
           word: PropTypes.string,
