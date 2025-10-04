@@ -69,6 +69,14 @@ function idxOf(header, name) {
   return header.map((value) => normalizeHeaderValue(value)).indexOf(name);
 }
 
+function formatCsvFields(header = []) {
+  if (!Array.isArray(header)) return "";
+  return header
+    .map((value) => (typeof value === "string" ? value.trim() : ""))
+    .filter(Boolean)
+    .join(", ");
+}
+
 function buildWordMeta(pack, chapter) {
   const packId = pack?.id || "";
   const packLanguage = pack?.language || "";
@@ -890,10 +898,14 @@ export default function PacksPage() {
       const rows = parseCsvRows(text);
       if (rows.length === 0) return alert(STRINGS.packsPage.csv.emptyFile);
 
-      const [header, ...data] = rows;
-      const required = ["chapter", "chaptertitle", "word", "pos", "meaning", "example"];
+      const [header, ...data] = rows;      
       if (!ensureHeaders(header, CSV_REQUIRED_HEADERS)) {
-        return alert(`${STRINGS.packsPage.csv.headerError}\n${STRINGS.packsPage.csv.headerRequired}`);
+        const uploadedFields = formatCsvFields(header);
+        return alert([
+          STRINGS.packsPage.csv.headerError,
+          STRINGS.packsPage.csv.headerRequired,
+          STRINGS.packsPage.csv.headerUploaded(uploadedFields),
+        ].join("\n"));
       }
       const cIdx = idxOf(header, "chapter");
       const tIdx = idxOf(header, "chaptertitle");
@@ -1010,7 +1022,12 @@ export default function PacksPage() {
 
       const [header, ...data] = rows;
       if (!ensureHeaders(header, CSV_REQUIRED_HEADERS)) {
-        return alert(`${STRINGS.packsPage.csv.headerError}\n${STRINGS.packsPage.csv.headerRequired}`);
+        const uploadedFields = formatCsvFields(header);
+        return alert([
+          STRINGS.packsPage.csv.headerError,
+          STRINGS.packsPage.csv.headerRequired,
+          STRINGS.packsPage.csv.headerUploaded(uploadedFields),
+        ].join("\n"));
       }
       const wIdx = idxOf(header, "word");
       const pIdx = idxOf(header, "pos");

@@ -124,8 +124,9 @@ export const STRINGS = {
       uploadCsv: "CSV 업로드",
     },
     csv: {
-      headerError: "CSV 헤더가 올바르지 않습니다.",
-      headerRequired: "필수: chapter,chapterTitle,word,pos,meaning,example",
+      headerError: "데이터 형식이 맞지 않습니다.",
+      headerRequired: "필수데이터: chapter, chapterTitle, word, pos, meaning, example",
+      headerUploaded: (fields) => `업로드된 필드: ${fields || "없음"}`,
       emptyFile: "CSV 파일이 비어있습니다.",
       invalidRows: "업로드할 유효한 행이 없습니다.",
       processingError: "CSV 처리 중 오류가 발생했습니다.",
