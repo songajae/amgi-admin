@@ -81,6 +81,9 @@ export function parseCSV(text) {
       header.forEach((h, idx) => {
         obj[h] = cols[idx] || "";
       });
+      
+      return obj;
+    });
   } catch (error) {
     console.error("CSV 파싱 실패:", error);
     return []; // 에러 발생 시 빈 배열을 반환합니다.
