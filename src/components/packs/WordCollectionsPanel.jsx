@@ -123,7 +123,7 @@ export default function WordCollectionsPanel({
               return (
                 <article key={group.key} className="mb-8 last:mb-0">
                   <div className="flex flex-col gap-4 lg:flex-row">
-                    <aside className="shrink-0 rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50 p-4 text-sm leading-6 text-blue-900 shadow-inner lg:w-64">
+                    <aside className="shrink-0 rounded-2xl border border-blue-200 bg-gradient-to-br from-blue-50 via-sky-50 to-indigo-50 p-4 text-sm leading-6 text-blue-900 shadow-inner lg:w-64 lg:self-start lg:sticky lg:top-4">
                       <dl className="space-y-2">
                         <div>
                           <dt className="text-xs font-semibold uppercase tracking-wide text-blue-600">
