@@ -198,7 +198,7 @@ export default function WordCollectionsPanel({
                                             <div className="flex shrink-0 gap-2">
                                               <button
                                                 type="button"
-                                                                                                onClick={() =>
+                                                  onClick={() =>
                                                   onEdit?.({
                                                     index: sense.__index,
                                                     packId: group.packId,
@@ -206,7 +206,7 @@ export default function WordCollectionsPanel({
                                                     word: word.word,
                                                     sense,
                                                   })
-                                                } 
+                                               
   
                                                 className="rounded-md bg-yellow-500 px-3 py-1 text-xs font-semibold text-white hover:bg-yellow-600"
                                               >
@@ -214,7 +214,7 @@ export default function WordCollectionsPanel({
                                               </button>
                                               <button
                                                 type="button"
-                                                                                                onClick={() =>
+                                                  onClick={() =>
                                                   onDelete?.({
                                                     index: sense.__index,
                                                     packId: group.packId,
@@ -222,6 +222,8 @@ export default function WordCollectionsPanel({
                                                     word: word.word,
                                                     sense,
                                                   })
+
+                                                }
       
                                                 className="rounded-md bg-red-600 px-3 py-1 text-xs font-semibold text-white hover:bg-red-700"
                                               >
