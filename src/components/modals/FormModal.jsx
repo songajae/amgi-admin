@@ -71,24 +71,34 @@ export default function FormModal({
       }
     >
       <form id="entity-form-modal" className="space-y-4" onSubmit={handleSubmit}>
-        {fields.map((field) => (
-          <label key={field.name} className="block text-sm">
-            <span className="mb-1 block font-semibold text-slate-700">
-              {field.label}
-              {field.required && <span className="text-red-500"> *</span>}
-            </span>
-            <input
-              type={field.type || "text"}
-              value={values[field.name] ?? ""}
-              onChange={(event) => handleChange(field.name, event.target.value)}
-              placeholder={field.placeholder}
-              required={field.required}
-              disabled={field.disabled}
-              readOnly={field.readOnly}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-            />
-          </label>
-        ))}
+                {fields.map((field) => {
+          const isTextarea = field.type === "textarea";
+          const InputComponent = isTextarea ? "textarea" : "input";
+          const commonProps = {
+            value: values[field.name] ?? "",
+            onChange: (event) => handleChange(field.name, event.target.value),
+            placeholder: field.placeholder,
+            required: field.required,
+            disabled: field.disabled,
+            readOnly: field.readOnly,
+            className:
+              "w-full rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500",
+          };
+
+          const inputProps = isTextarea
+            ? { ...commonProps, rows: field.rows || 3 }
+            : { ...commonProps, type: field.type || "text" };
+
+          return (
+            <label key={field.name} className="block text-sm">
+              <span className="mb-1 block font-semibold text-slate-700">
+                {field.label}
+                {field.required && <span className="text-red-500"> *</span>}
+              </span>
+              <InputComponent {...inputProps} />
+            </label>
+          );
+        })}
       </form>
     </ModalShell>
   );
@@ -107,6 +117,7 @@ FormModal.propTypes = {
       type: PropTypes.string,
       disabled: PropTypes.bool,
       readOnly: PropTypes.bool,
+      rows: PropTypes.number,
     })
   ).isRequired,
   initialValues: PropTypes.object,

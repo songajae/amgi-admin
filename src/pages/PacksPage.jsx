@@ -659,59 +659,235 @@ export default function PacksPage() {
   };
 
   /* ===== 단어 액션 ===== */
-  const handleAddWord = async () => {
-    if (!selectedPack || !selectedChapterId) return alert(STRINGS.packsPage.alerts.selectChapterFirst);
-    const word = prompt("단어");
-    if (!word) return;
-    const pos = prompt("품사", "n.") || "";
-    const meaning = prompt("뜻") || "";
-    const example = prompt("예문(선택)") || "";
-    const current = chapters.find((c) => c.chapterId === selectedChapterId);
-    const arr = wordsObjectToArray(current?.words || []);
-    arr.push({ word, pos, meaning, example });
-    const chapterLabel = current?.chapter || current?.title || selectedChapterId;
-    await upsertChapter(selectedPack.id, selectedChapterId, {
-      chapter: chapterLabel,
-      title: current?.title || chapterLabel,
-      words: wordsArrayToObject(arr),
-    });
-    const list = await getChaptersByPack(selectedPack.id);
-    setChaptersByPack((prev) => ({ ...prev, [selectedPack.id]: list }));
+  const resolveWordContext = (payload) => {
+    if (payload == null) return null;
+
+    if (typeof payload === "number") {
+      if (!selectedPackId || !selectedChapterId) return null;
+      const pack = packs.find((p) => p.id === selectedPackId) || null;
+      const chapterList = chaptersByPack[selectedPackId] || [];
+      const chapter = chapterList.find((c) => c.chapterId === selectedChapterId) || null;
+      return {
+        index: payload,
+        pack,
+        chapter,
+        packId: selectedPackId,
+        chapterId: selectedChapterId,
+      };
+    }
+
+    if (typeof payload === "object") {
+      const { index, packId, chapterId } = payload;
+      if (typeof index !== "number" || !packId || !chapterId) return null;
+      const pack = packs.find((p) => p.id === packId) || null;
+      const chapterList = chaptersByPack[packId] || [];
+      const chapter = chapterList.find((c) => c.chapterId === chapterId) || null;
+      return {
+        index,
+        pack,
+        chapter,
+        packId,
+        chapterId,
+        sense: payload.sense,
+        word: payload.word,
+      };
+    }
+
+    return null;
   };
-  const handleEditWord = async (idx) => {
-    if (!selectedPack || !selectedChapterId) return;
-    const current = chapters.find((c) => c.chapterId === selectedChapterId);
-    const arr = wordsObjectToArray(current?.words || []);
-    const w = arr[idx];
-    if (!w) return;
-    const word = prompt("단어", w.word) || w.word;
-    const pos = prompt("품사", w.pos || "") || w.pos;
-    const meaning = prompt("뜻", w.meaning || "") || w.meaning;
-    const example = prompt("예문", w.example || "") || w.example;
-    arr[idx] = { word, pos, meaning, example };
-    const chapterLabel = current?.chapter || current?.title || selectedChapterId;
-    await upsertChapter(selectedPack.id, selectedChapterId, {
-      chapter: chapterLabel,
-      title: current?.title || chapterLabel,
-      words: wordsArrayToObject(arr),
-    });
-    const list = await getChaptersByPack(selectedPack.id);
-    setChaptersByPack((prev) => ({ ...prev, [selectedPack.id]: list }));
+
+  const saveWordsToChapter = async ({ packId, chapterId, chapter, wordsArray }) => {
+    if (!packId || !chapterId) return false;
+    const chapterLabel = chapter?.chapter || chapter?.title || chapterId;
+
+    try {
+      await upsertChapter(packId, chapterId, {
+        chapter: chapterLabel,
+        title: chapter?.title || chapterLabel,
+        words: wordsArrayToObject(wordsArray),
+      });
+
+      const refreshed = await getChaptersByPack(packId);
+      setChaptersByPack((prev) => ({ ...prev, [packId]: refreshed }));
+      return true;
+    } catch (error) {
+      console.error(error);
+      alert(STRINGS.packsPage.alerts.operationFailed);
+      return false;
+    }
   };
-  const handleDeleteWord = async (idx) => {
-    if (!selectedPack || !selectedChapterId) return;
-    if (!window.confirm(STRINGS.packsPage.alerts.confirmDeleteWord)) return;
-    const current = chapters.find((c) => c.chapterId === selectedChapterId);
-    const arr = wordsObjectToArray(current?.words || []);
-    arr.splice(idx, 1);
-    const chapterLabel = current?.chapter || current?.title || selectedChapterId;
-    await upsertChapter(selectedPack.id, selectedChapterId, {
-      chapter: chapterLabel,
-      title: current?.title || chapterLabel,
-      words: wordsArrayToObject(arr),
+
+  const handleAddWord = () => {
+    if (!selectedPackId || !selectedChapterId) return alert(STRINGS.packsPage.alerts.selectChapterFirst);
+
+    const chapter = chapters.find((c) => c.chapterId === selectedChapterId);
+    if (!chapter) return;
+
+    const chapterLabel = chapter?.title || chapter?.chapter || selectedChapterId;
+
+    setFormModalConfig({
+      title: STRINGS.packsPage.forms.addWordTitle,
+      description: STRINGS.packsPage.forms.addWordDescription(chapterLabel),
+      submitLabel: STRINGS.packsPage.forms.addWordSubmit,
+      fields: [
+        {
+          name: "word",
+          label: STRINGS.packsPage.forms.wordLabel,
+          placeholder: STRINGS.packsPage.forms.wordPlaceholder,
+          required: true,
+        },
+        {
+          name: "pos",
+          label: STRINGS.packsPage.forms.posLabel,
+          placeholder: STRINGS.packsPage.forms.posPlaceholder,
+        },
+        {
+          name: "meaning",
+          label: STRINGS.packsPage.forms.meaningLabel,
+          placeholder: STRINGS.packsPage.forms.meaningPlaceholder,
+          type: "textarea",
+          rows: 3,
+        },
+        {
+          name: "example",
+          label: STRINGS.packsPage.forms.exampleLabel,
+          placeholder: STRINGS.packsPage.forms.examplePlaceholder,
+          type: "textarea",
+          rows: 3,
+        },
+      ],
+      initialValues: {
+        word: "",
+        pos: "",
+        meaning: "",
+        example: "",
+      },
+      onSubmit: async (values) => {
+        const next = wordsObjectToArray(chapter?.words || []);
+        const trimmedWord = values.word?.trim() || "";
+        if (!trimmedWord) {
+          alert(STRINGS.packsPage.forms.wordRequiredMessage);
+          return false;
+        }
+
+        next.push({
+          word: trimmedWord,
+          pos: values.pos?.trim() || "",
+          meaning: values.meaning?.trim() || "",
+          example: values.example?.trim() || "",
+        });
+
+        return saveWordsToChapter({
+          packId: selectedPackId,
+          chapterId: selectedChapterId,
+          chapter,
+          wordsArray: next,
+        });
+      },
+    });   
+  };
+  
+  const handleEditWord = (payload) => {
+    const context = resolveWordContext(payload);
+    if (!context?.pack || !context?.chapter) return;
+
+    const { index, packId, chapterId, chapter } = context;
+    const arr = wordsObjectToArray(chapter?.words || []);
+    const target = arr[index];
+    if (!target) return;
+
+    const chapterLabel = chapter?.title || chapter?.chapter || chapterId;
+    const wordLabel = target.word || STRINGS.packsPage.forms.wordLabel;
+
+    setFormModalConfig({
+      title: STRINGS.packsPage.forms.editWordTitle,
+      description: STRINGS.packsPage.forms.editWordDescription(wordLabel, chapterLabel),
+      submitLabel: STRINGS.packsPage.forms.editWordSubmit,
+      fields: [
+        {
+          name: "word",
+          label: STRINGS.packsPage.forms.wordLabel,
+          placeholder: STRINGS.packsPage.forms.wordPlaceholder,
+          required: true,
+        },
+        {
+          name: "pos",
+          label: STRINGS.packsPage.forms.posLabel,
+          placeholder: STRINGS.packsPage.forms.posPlaceholder,
+        },
+        {
+          name: "meaning",
+          label: STRINGS.packsPage.forms.meaningLabel,
+          placeholder: STRINGS.packsPage.forms.meaningPlaceholder,
+          type: "textarea",
+          rows: 3,
+        },
+        {
+          name: "example",
+          label: STRINGS.packsPage.forms.exampleLabel,
+          placeholder: STRINGS.packsPage.forms.examplePlaceholder,
+          type: "textarea",
+          rows: 3,
+        },
+      ],
+      initialValues: {
+        word: target.word || "",
+        pos: target.pos || "",
+        meaning: target.meaning || "",
+        example: target.example || "",
+      },
+      onSubmit: async (values) => {
+        const next = wordsObjectToArray(chapter?.words || []);
+        const trimmedWord = values.word?.trim() || "";
+        if (!trimmedWord) {
+          alert(STRINGS.packsPage.forms.wordRequiredMessage);
+          return false;
+        }
+
+        next[index] = {
+          word: trimmedWord,
+          pos: values.pos?.trim() || "",
+          meaning: values.meaning?.trim() || "",
+          example: values.example?.trim() || "",
+        };
+
+        return saveWordsToChapter({
+          packId,
+          chapterId,
+          chapter,
+          wordsArray: next,
+        });
+      },
+    });  
+  };
+ 
+  const handleDeleteWord = (payload) => {
+    const context = resolveWordContext(payload);
+    if (!context?.pack || !context?.chapter) return;
+
+    const { index, packId, chapterId, chapter } = context;
+    const arr = wordsObjectToArray(chapter?.words || []);
+    if (!arr[index]) return;
+
+    const chapterLabel = chapter?.title || chapter?.chapter || chapterId;
+    const wordLabel = arr[index].word || STRINGS.packsPage.forms.wordLabel;
+
+    setConfirmModalConfig({
+      title: STRINGS.packsPage.forms.deleteWordTitle,
+      description: STRINGS.packsPage.forms.deleteWordDescription(wordLabel, chapterLabel),
+      confirmLabel: STRINGS.common.buttons.delete,
+      confirmTone: "danger",
+      onConfirm: async () => {
+        const next = wordsObjectToArray(chapter?.words || []);
+        next.splice(index, 1);
+        return saveWordsToChapter({
+          packId,
+          chapterId,
+          chapter,
+          wordsArray: next,
+        });
+      },
     });
-    const list = await getChaptersByPack(selectedPack.id);
-    setChaptersByPack((prev) => ({ ...prev, [selectedPack.id]: list }));
   };
 
   /* ===== 언어팩 CSV: 모드 선택 모달 + 적용 ===== */
@@ -753,8 +929,17 @@ export default function PacksPage() {
         }
       }
       if (Object.keys(grouped).length === 0) return alert(STRINGS.packsPage.csv.invalidRows);
+      
+      const existingChapters = chaptersByPack[selectedPack.id] || [];
+      const hasExistingChapters = existingChapters.length > 0;
+
       setPendingPackGrouped(grouped);
-      setShowPackUploadMode(true);
+      
+      if (hasExistingChapters) {
+        setShowPackUploadMode(true);
+      } else {
+        await applyPackGrouped("overwrite", grouped);
+      }
     } catch (err) {
       console.error(err);
       alert(STRINGS.packsPage.csv.processingError);
@@ -763,46 +948,51 @@ export default function PacksPage() {
     }
   };
 
-  const applyPackGrouped = async (mode) => {
-    if (!pendingPackGrouped || !selectedPack) return;
-    const grouped = pendingPackGrouped;
+   const applyPackGrouped = async (mode, groupedOverride = null) => {
+    if (!selectedPack) return;
+    const grouped = groupedOverride || pendingPackGrouped;
+    if (!grouped) return;
+
     setShowPackUploadMode(false);
 
-    if (mode === "overwrite") {
-      const existing = await getChaptersByPack(selectedPack.id);
-      for (const c of existing) await deleteChapter(selectedPack.id, c.chapterId); // ✅ 2025-09-27
-      let order = 0;
-      for (const ch of Object.keys(grouped)) {
-        const { title, wordsArr } = grouped[ch];
-        const chapterLabel = ch || `chapter-${order + 1}`;
-        await upsertChapter(selectedPack.id, null, {
-          chapter: chapterLabel,
-          title: title || chapterLabel,
-          order: order + 1,
-          words: wordsArrayToObject(wordsArr),
-        });
-        order += 1;
-      }
-    } else if (mode === "append") {
-      const existing = await getChaptersByPack(selectedPack.id);
-      let cursor = existing.length;
-      for (const ch of Object.keys(grouped)) {
-        cursor += 1;
-        const { title, wordsArr } = grouped[ch];
-        const chapterLabel = ch || `ch${cursor}`;
-        await upsertChapter(selectedPack.id, null, {
-          chapter: chapterLabel,
-          title: title || chapterLabel,
-          order: cursor,
-          words: wordsArrayToObject(wordsArr),
-        });
-      }
+    try {
+      if (mode === "overwrite") {
+        const existing = await getChaptersByPack(selectedPack.id);
+        for (const c of existing) await deleteChapter(selectedPack.id, c.chapterId); // ✅ 2025-09-27
+        let order = 0;
+        for (const ch of Object.keys(grouped)) {
+          const { title, wordsArr } = grouped[ch];
+          const chapterLabel = ch || `chapter-${order + 1}`;
+          await upsertChapter(selectedPack.id, null, {
+            chapter: chapterLabel,
+            title: title || chapterLabel,
+            order: order + 1,
+            words: wordsArrayToObject(wordsArr),
+          });
+          order += 1;
+        }
+      } else if (mode === "append") {
+        const existing = await getChaptersByPack(selectedPack.id);
+        let cursor = existing.length;
+        for (const ch of Object.keys(grouped)) {
+          cursor += 1;
+          const { title, wordsArr } = grouped[ch];
+          const chapterLabel = ch || `ch${cursor}`;
+          await upsertChapter(selectedPack.id, null, {
+            chapter: chapterLabel,
+            title: title || chapterLabel,
+            order: cursor,
+            words: wordsArrayToObject(wordsArr),
+          });
+        }      
     }
 
     const refreshed = await getChaptersByPack(selectedPack.id);
-    setChaptersByPack((prev) => ({ ...prev, [selectedPack.id]: refreshed }));
-    setSelectedChapterId(refreshed[0]?.chapterId || "");
-    setPendingPackGrouped(null);
+      setChaptersByPack((prev) => ({ ...prev, [selectedPack.id]: refreshed }));
+      setSelectedChapterId(refreshed[0]?.chapterId || "");
+    } finally {
+      setPendingPackGrouped(null);
+    }
   };
 
   /* ===== 챕터 CSV: 마지막 챕터에 단어 추가 + 중복 단어 모달 ===== */
@@ -846,22 +1036,48 @@ export default function PacksPage() {
       const baseArr = wordsObjectToArray(last.words || []);
       const byWord = new Map(baseArr.map((w) => [(w.word || "").trim(), true]));
 
+      const groupedNewEntries = new Map();
+      const orderedWords = [];
+
       for (const r of data) {
         const word = (r[wIdx] || "").trim();
         if (!word) continue;
         const item = { word, pos: r[pIdx] || "", meaning: r[mIdx] || "", example: r[eIdx] || "" };
 
-        if (byWord.has(word)) {
+        if (!groupedNewEntries.has(word)) {
+          groupedNewEntries.set(word, []);
+          orderedWords.push(word);
+        }
+
+        groupedNewEntries.get(word).push(item);
+      }
+
+      for (const word of orderedWords) {
+        const items = groupedNewEntries.get(word) || [];
+        if (items.length === 0) continue;
+
+        const hasExisting = byWord.has(word);
+        let shouldAppend = true;
+
+        if (hasExisting) {
           const { choice } = await askDuplicate(word);
-          if (choice === "ignore") continue;
-          if (choice === "overwrite") {
-            for (let i = baseArr.length - 1; i >= 0; i--) {
-              if ((baseArr[i].word || "").trim() === word) baseArr.splice(i, 1);
+          if (choice === "ignore") {
+            shouldAppend = false;
+          } else if (choice === "overwrite") {
+            for (let i = baseArr.length - 1; i >= 0; i -= 1) {
+              if ((baseArr[i].word || "").trim() === word) {
+                baseArr.splice(i, 1);
+              }
             }
-            baseArr.push(item);
+            } else {
+            shouldAppend = false;
           }
-        } else {
-          baseArr.push(item);
+        }
+
+        if (shouldAppend) {
+          items.forEach((item) => {
+            baseArr.push(item);
+          });
           byWord.set(word, true);
         }
       }

@@ -183,6 +183,28 @@ export const STRINGS = {
       chapterTitleLabel: "챕터 제목",
       addChapterSubmit: "챕터 생성",
       editChapterSubmit: "챕터 수정",
+      
+      // 단어 관리 모달 (src/pages/PacksPage.jsx)
+      addWordTitle: "단어 추가",
+      addWordDescription: (chapterLabel) =>
+        `${chapterLabel ? `${chapterLabel} ` : ""}챕터에 새로운 단어를 추가합니다.`,
+      addWordSubmit: "단어 추가",
+      editWordTitle: "단어 수정",
+      editWordDescription: (word, chapterLabel) =>
+        `${chapterLabel ? `${chapterLabel} ` : ""}챕터의 "${word}" 단어 정보를 수정하세요.`,
+      editWordSubmit: "단어 수정",
+      deleteWordTitle: "단어 삭제",
+      deleteWordDescription: (word, chapterLabel) =>
+        `${chapterLabel ? `${chapterLabel} ` : ""}챕터에서 "${word}" 단어를 삭제할까요?`,
+      wordLabel: "단어",
+      wordPlaceholder: "예: toast",
+      posLabel: "품사",
+      posPlaceholder: "예: n.",
+      meaningLabel: "뜻",
+      meaningPlaceholder: "뜻을 입력하세요.",
+      exampleLabel: "예문",
+      examplePlaceholder: "예문을 입력하세요.",
+      wordRequiredMessage: "단어를 입력하세요.",
     },
   },
 

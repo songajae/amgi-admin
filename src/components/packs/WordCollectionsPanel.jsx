@@ -117,7 +117,7 @@ export default function WordCollectionsPanel({
             </p>
           ) : (
             filteredGroups.map((group) => {
-              const isActiveGroup = group.key === activeGroupKey;
+              const isActiveGroup = activeGroupKey ? group.key === activeGroupKey : true;
 
               return (
                 <article key={group.key} className="mb-8 last:mb-0">
@@ -198,14 +198,31 @@ export default function WordCollectionsPanel({
                                             <div className="flex shrink-0 gap-2">
                                               <button
                                                 type="button"
-                                                onClick={() => onEdit?.(sense.__index)}
+                                                                                                onClick={() =>
+                                                  onEdit?.({
+                                                    index: sense.__index,
+                                                    packId: group.packId,
+                                                    chapterId: group.chapterId,
+                                                    word: word.word,
+                                                    sense,
+                                                  })
+                                                } 
+  
                                                 className="rounded-md bg-yellow-500 px-3 py-1 text-xs font-semibold text-white hover:bg-yellow-600"
                                               >
                                                 {STRINGS.common.buttons.edit}
                                               </button>
                                               <button
                                                 type="button"
-                                                onClick={() => onDelete?.(sense.__index)}
+                                                                                                onClick={() =>
+                                                  onDelete?.({
+                                                    index: sense.__index,
+                                                    packId: group.packId,
+                                                    chapterId: group.chapterId,
+                                                    word: word.word,
+                                                    sense,
+                                                  })
+      
                                                 className="rounded-md bg-red-600 px-3 py-1 text-xs font-semibold text-white hover:bg-red-700"
                                               >
                                                 {STRINGS.common.buttons.delete}
