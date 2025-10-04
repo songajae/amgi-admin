@@ -236,21 +236,11 @@ export default function WordCollectionsPanel({
                                         {(sense.example || sense.exampleMeaning) && (
                                           <div className="space-y-2 rounded-md bg-slate-50 p-3 text-xs text-slate-600">
                                             {sense.example && (
-                                              <p>
-                                                <span className="font-semibold text-slate-700">
-                                                  {STRINGS.packs.wordsPanel.labels.example}
-                                                </span>{" "}
-                                                {sense.example}
+                                              <p className="text-slate-700">
+                                                <strong>{sense.example}</strong>
                                               </p>
                                             )}
-                                            {sense.exampleMeaning && (
-                                              <p>
-                                                <span className="font-semibold text-slate-700">
-                                                  {STRINGS.packs.wordsPanel.labels.exampleMeaning}
-                                                </span>{" "}
-                                                {sense.exampleMeaning}
-                                              </p>
-                                            )}
+                                            {sense.exampleMeaning && <p>{sense.exampleMeaning}</p>}
                                           </div>
                                         )}
                                       </div>
