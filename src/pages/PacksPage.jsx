@@ -19,6 +19,7 @@ import FormModal from "../components/modals/FormModal";
 import CsvUploadModeModal from "../components/modals/CsvUploadModeModal";
 
 import { STRINGS } from "../constants/strings";
+import { parseCsvRows } from "../lib/csv";
 
 import {
   getWordPacks, addWordPack, updateWordPack, deleteWordPack,
@@ -58,20 +59,6 @@ function normalizeHeaderValue(value = "") {
   return value.replace(/^\ufeff/, "").trim().toLowerCase();
 }
 
-function parseCSV(text) {
-  // ✅ BOM 과 공백을 제거해 헤더 불일치 문제를 예방
-  return text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line, index) => {
-      const columns = line.split(",").map((segment) => segment.trim());
-      if (index === 0 && columns.length > 0) {
-        columns[0] = columns[0].replace(/^\ufeff/, "");
-      }
-      return columns;
-    });
-}
 function ensureHeaders(header, required) {
   if (!header || header.length === 0) return false;
   const normalized = header.map((value) => normalizeHeaderValue(value));
@@ -900,7 +887,7 @@ export default function PacksPage() {
       if (!file) return;
 
       const text = await file.text();
-      const rows = parseCSV(text);
+      const rows = parseCsvRows(text);
       if (rows.length === 0) return alert(STRINGS.packsPage.csv.emptyFile);
 
       const [header, ...data] = rows;
@@ -948,7 +935,7 @@ export default function PacksPage() {
     }
   };
 
-   const applyPackGrouped = async (mode, groupedOverride = null) => {
+  const applyPackGrouped = async (mode, groupedOverride = null) => {
     if (!selectedPack) return;
     const grouped = groupedOverride || pendingPackGrouped;
     if (!grouped) return;
@@ -1018,7 +1005,7 @@ export default function PacksPage() {
       if (!file) return;
 
       const text = await file.text();
-      const rows = parseCSV(text);
+      const rows = parseCsvRows(text);
       if (rows.length === 0) return alert(STRINGS.packsPage.csv.emptyFile);
 
       const [header, ...data] = rows;
