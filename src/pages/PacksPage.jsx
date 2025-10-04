@@ -37,6 +37,7 @@ function wordsObjectToArray(wordsObj = {}, extra = {}) {
         pos: e.pos || "",
         meaning: e.meaning || "",
         example: e.example || "",
+        exampleMeaning: e.exampleMeaning || "",
         ...extra,
       });
     }
@@ -49,11 +50,25 @@ function wordsArrayToObject(wordsArr = []) {
     const key = (w.word || "").trim();
     if (!key) continue;
     if (!obj[key]) obj[key] = [];
-    obj[key].push({ pos: w.pos || "", meaning: w.meaning || "", example: w.example || "" });
+    obj[key].push({
+      pos: w.pos || "",
+      meaning: w.meaning || "",
+      example: w.example || "",
+      exampleMeaning: w.exampleMeaning || "",
+    });
   }
   return obj;
 }
-const CSV_REQUIRED_HEADERS = ["chapter", "chaptertitle", "word", "pos", "meaning", "example"];
+// ✅ CSV 헤더: 예문 해석(exampleMeaning) 필드가 추가됨에 따라 필수 헤더 목록 확장
+const CSV_REQUIRED_HEADERS = [
+  "chapter",
+  "chaptertitle",
+  "word",
+  "pos",
+  "meaning",
+  "example",
+  "examplemeaning",
+];
 
 function normalizeHeaderValue(value = "") {
   return value.replace(/^\ufeff/, "").trim().toLowerCase();
@@ -750,12 +765,21 @@ export default function PacksPage() {
           type: "textarea",
           rows: 3,
         },
+        {
+          // ✅ 예문 해석 입력 필드 추가: 학습자에게 문장 번역 제공
+          name: "exampleMeaning",
+          label: STRINGS.packsPage.forms.exampleMeaningLabel,
+          placeholder: STRINGS.packsPage.forms.exampleMeaningPlaceholder,
+          type: "textarea",
+          rows: 3,
+        },
       ],
       initialValues: {
         word: "",
         pos: "",
         meaning: "",
         example: "",
+         exampleMeaning: "",
       },
       onSubmit: async (values) => {
         const next = wordsObjectToArray(chapter?.words || []);
@@ -770,6 +794,7 @@ export default function PacksPage() {
           pos: values.pos?.trim() || "",
           meaning: values.meaning?.trim() || "",
           example: values.example?.trim() || "",
+          exampleMeaning: values.exampleMeaning?.trim() || "",
         });
 
         return saveWordsToChapter({
@@ -824,12 +849,21 @@ export default function PacksPage() {
           type: "textarea",
           rows: 3,
         },
+        {
+          // ✅ 예문 해석 수정 필드: 기존 데이터 편집 지원
+          name: "exampleMeaning",
+          label: STRINGS.packsPage.forms.exampleMeaningLabel,
+          placeholder: STRINGS.packsPage.forms.exampleMeaningPlaceholder,
+          type: "textarea",
+          rows: 3,
+        },
       ],
       initialValues: {
         word: target.word || "",
         pos: target.pos || "",
         meaning: target.meaning || "",
         example: target.example || "",
+        exampleMeaning: target.exampleMeaning || "",
       },
       onSubmit: async (values) => {
         const next = wordsObjectToArray(chapter?.words || []);
@@ -844,6 +878,7 @@ export default function PacksPage() {
           pos: values.pos?.trim() || "",
           meaning: values.meaning?.trim() || "",
           example: values.example?.trim() || "",
+          exampleMeaning: values.exampleMeaning?.trim() || "",
         };
 
         return saveWordsToChapter({
@@ -913,6 +948,7 @@ export default function PacksPage() {
       const pIdx = idxOf(header, "pos");
       const mIdx = idxOf(header, "meaning");
       const eIdx = idxOf(header, "example");
+      const emIdx = idxOf(header, "examplemeaning");
 
       const grouped = {};
       for (const r of data) {
@@ -923,7 +959,11 @@ export default function PacksPage() {
         const word = r[wIdx];
         if (word) {
           grouped[chapter].wordsArr.push({
-            word, pos: r[pIdx] || "", meaning: r[mIdx] || "", example: r[eIdx] || "",
+            word,
+            pos: r[pIdx] || "",
+            meaning: r[mIdx] || "",
+            example: r[eIdx] || "",
+            exampleMeaning: r[emIdx] || "",
           });
         }
       }
@@ -1033,6 +1073,7 @@ export default function PacksPage() {
       const pIdx = idxOf(header, "pos");
       const mIdx = idxOf(header, "meaning");
       const eIdx = idxOf(header, "example");
+      const emIdx = idxOf(header, "examplemeaning");
 
       const current = await getChaptersByPack(selectedPack.id);
       if (current.length === 0) return alert(STRINGS.packsPage.csv.needChapter);
@@ -1046,8 +1087,13 @@ export default function PacksPage() {
       for (const r of data) {
         const word = (r[wIdx] || "").trim();
         if (!word) continue;
-        const item = { word, pos: r[pIdx] || "", meaning: r[mIdx] || "", example: r[eIdx] || "" };
-
+        const item = {
+          word,
+          pos: r[pIdx] || "",
+          meaning: r[mIdx] || "",
+          example: r[eIdx] || "",
+          exampleMeaning: r[emIdx] || "",
+        };
         if (!groupedNewEntries.has(word)) {
           groupedNewEntries.set(word, []);
           orderedWords.push(word);

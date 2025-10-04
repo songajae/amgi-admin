@@ -102,7 +102,7 @@ export const STRINGS = {
   packs: {
     wordsPanel: {
       title: "단어 리스트",
-      searchPlaceholder: "단어/품사/뜻/예문 검색",
+      searchPlaceholder: "단어/품사/뜻/예문/예문 해석 검색",
       totalLabel: (count) => `총 ${count}개의 단어`,
       labels: {
         language: "언어",
@@ -110,6 +110,7 @@ export const STRINGS = {
         chapter: "챕터",
         unknown: "미정",
         example: "예문",
+        exampleMeaning: "예문 해석",
       },
       emptyMessage: "등록된 단어가 없습니다.",
     },
@@ -125,7 +126,7 @@ export const STRINGS = {
     },
     csv: {
       headerError: "데이터 형식이 맞지 않습니다.",
-      headerRequired: "필수데이터: chapter, chapterTitle, word, pos, meaning, example",
+      headerRequired: "필수데이터: chapter, chapterTitle, word, pos, meaning, example, exampleMeaning",  
       headerUploaded: (fields) => `업로드된 필드: ${fields || "없음"}`,
       emptyFile: "CSV 파일이 비어있습니다.",
       invalidRows: "업로드할 유효한 행이 없습니다.",
@@ -206,6 +207,8 @@ export const STRINGS = {
       exampleLabel: "예문",
       examplePlaceholder: "예문을 입력하세요.",
       wordRequiredMessage: "단어를 입력하세요.",
+      exampleMeaningLabel: "예문 해석",
+      exampleMeaningPlaceholder: "예문에 대한 해석을 입력하세요.",
     },
   },
 

@@ -13,7 +13,7 @@ function matchesQuery(word, query) {
   const target = query.trim().toLowerCase();
   if (!target) return true;
 
-  return [word.word, word.pos, word.meaning, word.example]
+  return [word.word, word.pos, word.meaning, word.example, word.exampleMeaning]
     .map((value) => (value || "").toLowerCase())
     .some((value) => value.includes(target));
 }
@@ -38,6 +38,7 @@ function aggregateWordEntries(entries = [], fallbackWordLabel = "") {
       pos: entry.pos || "",
       meaning: entry.meaning || "",
       example: entry.example || "",
+      exampleMeaning: entry.exampleMeaning || "",
       __index: typeof entry.__index === "number" ? entry.__index : index,
     });
   });
@@ -232,13 +233,25 @@ export default function WordCollectionsPanel({
                                           )}
                                         </div>
 
-                                        {sense.example && (
-                                          <p className="rounded-md bg-slate-50 p-3 text-xs text-slate-600">
-                                            <span className="font-semibold text-slate-700">
-                                              {STRINGS.packs.wordsPanel.labels.example}
-                                            </span>{" "}
-                                            {sense.example}
-                                          </p>
+                                        {(sense.example || sense.exampleMeaning) && (
+                                          <div className="space-y-2 rounded-md bg-slate-50 p-3 text-xs text-slate-600">
+                                            {sense.example && (
+                                              <p>
+                                                <span className="font-semibold text-slate-700">
+                                                  {STRINGS.packs.wordsPanel.labels.example}
+                                                </span>{" "}
+                                                {sense.example}
+                                              </p>
+                                            )}
+                                            {sense.exampleMeaning && (
+                                              <p>
+                                                <span className="font-semibold text-slate-700">
+                                                  {STRINGS.packs.wordsPanel.labels.exampleMeaning}
+                                                </span>{" "}
+                                                {sense.exampleMeaning}
+                                              </p>
+                                            )}
+                                          </div>
                                         )}
                                       </div>
                                     );
@@ -278,6 +291,7 @@ WordCollectionsPanel.propTypes = {
           meaning: PropTypes.string,
           example: PropTypes.string,
           __index: PropTypes.number,
+          exampleMeaning: PropTypes.string,
         })
       ),
     })
