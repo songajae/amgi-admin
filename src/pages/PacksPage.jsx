@@ -14,6 +14,11 @@ import WordCollectionsPanel from "../components/packs/WordCollectionsPanel";
 import PackSampleCsvButton from "../components/samples/PackSampleCsvButton";
 import ChapterSampleCsvButton from "../components/samples/ChapterSampleCsvButton";
 import DuplicateWordModal from "../components/modals/DuplicateWordModal";
+import ConfirmModal from "../components/modals/ConfirmModal";
+import FormModal from "../components/modals/FormModal";
+import CsvUploadModeModal from "../components/modals/CsvUploadModeModal";
+
+import { STRINGS } from "../constants/strings";
 
 import {
   getWordPacks, addWordPack, updateWordPack, deleteWordPack,
@@ -47,20 +52,34 @@ function wordsArrayToObject(wordsArr = []) {
   }
   return obj;
 }
+const CSV_REQUIRED_HEADERS = ["chapter", "chaptertitle", "word", "pos", "meaning", "example"];
+
+function normalizeHeaderValue(value = "") {
+  return value.replace(/^\ufeff/, "").trim().toLowerCase();
+}
+
 function parseCSV(text) {
+  // ✅ BOM 과 공백을 제거해 헤더 불일치 문제를 예방
   return text
     .split(/\r?\n/)
-    .map((l) => l.trim())
+    .map((line) => line.trim())
     .filter(Boolean)
-    .map((l) => l.split(",").map((s) => s.trim()));
+    .map((line, index) => {
+      const columns = line.split(",").map((segment) => segment.trim());
+      if (index === 0 && columns.length > 0) {
+        columns[0] = columns[0].replace(/^\ufeff/, "");
+      }
+      return columns;
+    });
 }
 function ensureHeaders(header, required) {
   if (!header || header.length === 0) return false;
-  const lower = header.map((h) => h.toLowerCase());
-  return required.every((r) => lower.includes(r));
+  const normalized = header.map((value) => normalizeHeaderValue(value));
+  return required.every((item) => normalized.includes(item));
 }
+
 function idxOf(header, name) {
-  return header.map((h) => h.toLowerCase()).indexOf(name);
+  return header.map((value) => normalizeHeaderValue(value)).indexOf(name);
 }
 
 function buildWordMeta(pack, chapter) {
@@ -122,6 +141,14 @@ export default function PacksPage() {
   const [dupWord, setDupWord] = useState(null);
   const dupResolverRef = useRef(null);
   const applyChoiceRef = useRef(null); // 'overwrite' | 'ignore' | null
+
+  // ✅ 언어/언어팩/챕터 CRUD를 모달로 처리하기 위한 상태 추가
+  const [formModalConfig, setFormModalConfig] = useState(null);
+  const [confirmModalConfig, setConfirmModalConfig] = useState(null);
+
+  const closeFormModal = () => setFormModalConfig(null);
+  const closeConfirmModal = () => setConfirmModalConfig(null);
+
 
   /* -----------------------------------------------------------
    * 초기 로드: 모든 팩과 각 팩의 챕터까지 미리 로드
@@ -288,99 +315,352 @@ export default function PacksPage() {
   };
 
   /* ===== 언어 액션들 ===== */
-  const handleAddLanguage = async () => {
-    const language = prompt("추가할 언어(예: 영어, 일본어 등)");
-    if (!language) return;
-    const name = prompt("초기 언어팩 이름", "기본팩") || "기본팩";
-    const type = prompt('타입(예: "free"/"paid")', "free") || "free";
-    await addWordPack({ language, name, type });
-    setSelectedLanguage(language);
-    await fetchPacks();
+  const handleAddLanguage = () => {
+    // ✅ 언어 추가를 모달 입력으로 대체
+    setFormModalConfig({
+      title: STRINGS.packsPage.forms.addLanguageTitle,
+      description: STRINGS.packsPage.forms.addLanguageDescription,
+      submitLabel: STRINGS.packsPage.forms.addLanguageSubmit,
+      fields: [
+        {
+          name: "language",
+          label: STRINGS.packsPage.forms.languageNameLabel,
+          placeholder: "예: 영어",
+          required: true,
+        },
+        {
+          name: "packName",
+          label: STRINGS.packsPage.forms.initialPackNameLabel,
+          placeholder: "예: 기본팩",
+          required: true,
+        },
+        {
+          name: "packType",
+          label: STRINGS.packsPage.forms.packTypeLabel,
+          placeholder: STRINGS.packsPage.forms.packTypePlaceholder,
+        },
+      ],
+      initialValues: { language: "", packName: "기본팩", packType: "free" },
+      onSubmit: async ({ language, packName, packType }) => {
+        try {
+          const trimmedLanguage = (language || "").trim();
+          if (!trimmedLanguage) return false;
+          const trimmedPackName = (packName || "").trim() || trimmedLanguage;
+          const sanitizedPackType = (packType || "free").trim() || "free";
+
+          await addWordPack({ language: trimmedLanguage, name: trimmedPackName, type: sanitizedPackType });
+          setSelectedLanguage(trimmedLanguage);
+          await fetchPacks();
+          return true;
+        } catch (error) {
+          console.error(error);
+          alert(STRINGS.packsPage.alerts.operationFailed);
+          return false;
+        }
+      },
+    });
   };
-  const handleEditLanguage = async () => {
-    if (!selectedLanguage) return alert("언어를 선택하세요.");
-    const newLang = prompt("언어 이름 변경", selectedLanguage);
-    if (!newLang || newLang === selectedLanguage) return;
-    const targets = packs.filter((p) => p.language === selectedLanguage);
-    for (const t of targets) await updateWordPack(t.id, { language: newLang });
-    setSelectedLanguage(newLang);
-    await fetchPacks();
+  const handleEditLanguage = () => {
+    if (!selectedLanguage) return alert(STRINGS.packsPage.alerts.selectLanguageFirst);
+
+    setFormModalConfig({
+      title: STRINGS.packsPage.forms.editLanguageTitle,
+      description: STRINGS.packsPage.forms.editLanguageDescription,
+      submitLabel: STRINGS.packsPage.forms.editLanguageSubmit,
+      fields: [
+        {
+          name: "language",
+          label: STRINGS.packsPage.forms.languageNameLabel,
+          required: true,
+        },
+      ],
+      initialValues: { language: selectedLanguage },
+      onSubmit: async ({ language }) => {
+        try {
+          const trimmed = (language || "").trim();
+          if (!trimmed || trimmed === selectedLanguage) return false;
+          const targets = packs.filter((pack) => pack.language === selectedLanguage);
+          for (const pack of targets) {
+            await updateWordPack(pack.id, { language: trimmed });
+          }
+          setSelectedLanguage(trimmed);
+          await fetchPacks();
+          return true;
+        } catch (error) {
+          console.error(error);
+          alert(STRINGS.packsPage.alerts.operationFailed);
+          return false;
+        }
+      },
+    });
   };
-  const handleDeleteLanguage = async () => {
-    if (!selectedLanguage) return alert("언어를 선택하세요.");
-    const targets = packs.filter((p) => p.language === selectedLanguage);
-    if (!window.confirm(`"${selectedLanguage}" 언어의 언어팩 ${targets.length}개를 모두 삭제할까요?`)) return;
-    for (const t of targets) await deleteWordPack(t.id);
-    setSelectedLanguage("");
-    setSelectedPackId("");
-    setSelectedChapterId("");
-    await fetchPacks();
+
+  const handleDeleteLanguage = () => {
+    if (!selectedLanguage) return alert(STRINGS.packsPage.alerts.selectLanguageFirst);
+
+    const targets = packs.filter((pack) => pack.language === selectedLanguage);
+    const description = [
+      STRINGS.packsPage.forms.deleteLanguageDescription(selectedLanguage),
+      STRINGS.packsPage.alerts.confirmDeleteLanguage(selectedLanguage, targets.length),
+    ].join("\n");
+
+    setConfirmModalConfig({
+      title: STRINGS.packsPage.forms.deleteLanguageTitle,
+      description,
+      confirmLabel: STRINGS.common.buttons.delete,
+      confirmTone: "danger",
+      onConfirm: async () => {
+        try {
+          for (const pack of targets) {
+            await deleteWordPack(pack.id);
+          }
+          setSelectedLanguage("");
+          setSelectedPackId("");
+          setSelectedChapterId("");
+          await fetchPacks();
+          return true;
+        } catch (error) {
+          console.error(error);
+          alert(STRINGS.packsPage.alerts.operationFailed);
+          return false;
+        }
+      },
+    });
   };
 
   /* ===== 언어팩 액션 ===== */
-  const handleAddPack = async () => {
-    if (!selectedLanguage) return alert("먼저 언어를 선택하세요.");
-    const name = prompt("언어팩 이름");
-    if (!name) return;
-    const type = prompt('타입(예: "free"/"paid")', "free") || "free";
-    const created = await addWordPack({ language: selectedLanguage, name, type });
-    setSelectedPackId(created.id);
-    await fetchPacks();
+  const handleAddPack = () => {
+    if (!selectedLanguage) return alert(STRINGS.packsPage.alerts.selectLanguageFirst);
+
+    setFormModalConfig({
+      title: STRINGS.packsPage.forms.addPackTitle,
+      description: STRINGS.packsPage.forms.addPackDescription,
+      submitLabel: STRINGS.packsPage.forms.addPackSubmit,
+      fields: [
+        {
+          name: "name",
+          label: STRINGS.packsPage.forms.packNameLabel,
+          placeholder: "예: 기본팩",
+          required: true,
+        },
+        {
+          name: "type",
+          label: STRINGS.packsPage.forms.packTypeLabel,
+          placeholder: STRINGS.packsPage.forms.packTypePlaceholder,
+        },
+      ],
+      initialValues: { name: "", type: "free" },
+      onSubmit: async ({ name, type }) => {
+        try {
+          const trimmedName = (name || "").trim();
+          if (!trimmedName) return false;
+          const sanitizedType = (type || "free").trim() || "free";
+          const created = await addWordPack({ language: selectedLanguage, name: trimmedName, type: sanitizedType });
+          setSelectedPackId(created.id);
+          await fetchPacks();
+          return true;
+        } catch (error) {
+          console.error(error);
+          alert(STRINGS.packsPage.alerts.operationFailed);
+          return false;
+        }
+      },
+    });
   };
-  const handleEditPack = async () => {
-    if (!selectedPack) return alert("언어팩을 선택하세요.");
-    const name = prompt("언어팩 이름 변경", selectedPack.name) || selectedPack.name;
-    const type = prompt('타입 변경(예: "free"/"paid")', selectedPack.type || "free") || selectedPack.type;
-    await updateWordPack(selectedPack.id, { name, type });
-    await fetchPacks();
+
+  const handleEditPack = () => {
+    if (!selectedPack) return alert(STRINGS.packsPage.alerts.selectPackFirst);
+
+    setFormModalConfig({
+      title: STRINGS.packsPage.forms.editPackTitle,
+      description: STRINGS.packsPage.forms.editPackDescription,
+      submitLabel: STRINGS.packsPage.forms.editPackSubmit,
+      fields: [
+        {
+          name: "name",
+          label: STRINGS.packsPage.forms.packNameLabel,
+          required: true,
+        },
+        {
+          name: "type",
+          label: STRINGS.packsPage.forms.packTypeLabel,
+          placeholder: STRINGS.packsPage.forms.packTypePlaceholder,
+        },
+      ],
+      initialValues: { name: selectedPack.name || "", type: selectedPack.type || "free" },
+      onSubmit: async ({ name, type }) => {
+        try {
+          const trimmedName = (name || "").trim();
+          if (!trimmedName) return false;
+          const sanitizedType = (type || selectedPack.type || "free").trim() || selectedPack.type || "free";
+          await updateWordPack(selectedPack.id, { name: trimmedName, type: sanitizedType });
+          await fetchPacks();
+          return true;
+        } catch (error) {
+          console.error(error);
+          alert(STRINGS.packsPage.alerts.operationFailed);
+          return false;
+        }
+      },
+    });
   };
-  const handleDeletePack = async () => {
-    if (!selectedPack) return alert("언어팩을 선택하세요.");
-    if (!window.confirm(`"${selectedPack.name}" 언어팩을 삭제할까요?`)) return;
-    await deleteWordPack(selectedPack.id);
-    setSelectedPackId("");
-    setSelectedChapterId("");
-    await fetchPacks();
+
+  const handleDeletePack = () => {
+    if (!selectedPack) return alert(STRINGS.packsPage.alerts.selectPackFirst);
+
+    const description = [
+      STRINGS.packsPage.forms.deletePackDescription(selectedPack.name),
+      STRINGS.packsPage.alerts.confirmDeletePack(selectedPack.name),
+    ].join("\n");
+
+    setConfirmModalConfig({
+      title: STRINGS.packsPage.forms.deletePackTitle,
+      description,
+      confirmLabel: STRINGS.common.buttons.delete,
+      confirmTone: "danger",
+      onConfirm: async () => {
+        try {
+          await deleteWordPack(selectedPack.id);
+          setSelectedPackId("");
+          setSelectedChapterId("");
+          await fetchPacks();
+          return true;
+        } catch (error) {
+          console.error(error);
+          alert(STRINGS.packsPage.alerts.operationFailed);
+          return false;
+        }
+      },
+    });
   };
 
   /* ===== 챕터 액션 ===== */
-  const handleAddChapter = async () => {
-    if (!selectedPack) return alert("언어팩을 선택하세요.");
-    const chapter = prompt("챕터 ID(예: ch1)");
-    if (!chapter) return;
-    const title = prompt("챕터 제목", chapter) || chapter;
-    const chapterId = await upsertChapter(selectedPack.id, null, { chapter, title, words: {} });
-    const list = await getChaptersByPack(selectedPack.id);
-    setChaptersByPack((prev) => ({ ...prev, [selectedPack.id]: list }));
-    setSelectedChapterId(chapterId);
-  };
-  const handleEditChapter = async () => {
-    if (!selectedPack || !selectedChapterId) return alert("챕터를 선택하세요.");
-    const current = chapters.find((c) => c.chapterId === selectedChapterId);
-    const chapterLabel = current?.chapter || current?.title || "";
-    const newTitle = prompt("챕터 제목 변경", current?.title || chapterLabel) || current?.title;
-    await upsertChapter(selectedPack.id, selectedChapterId, {
-      chapter: chapterLabel,
-      title: newTitle,
-      words: current?.words || {},
+  const handleAddChapter = () => {
+    if (!selectedPack) return alert(STRINGS.packsPage.alerts.selectPackFirst);
+
+    setFormModalConfig({
+      title: STRINGS.packsPage.forms.addChapterTitle,
+      description: STRINGS.packsPage.forms.addChapterDescription,
+      submitLabel: STRINGS.packsPage.forms.addChapterSubmit,
+      fields: [
+        {
+          name: "chapter",
+          label: STRINGS.packsPage.forms.chapterIdLabel,
+          placeholder: "예: ch1",
+          required: true,
+        },
+        {
+          name: "title",
+          label: STRINGS.packsPage.forms.chapterTitleLabel,
+          placeholder: "예: 동물",
+          required: true,
+        },
+      ],
+      initialValues: { chapter: "", title: "" },
+      onSubmit: async ({ chapter, title }) => {
+        try {
+          const trimmedChapter = (chapter || "").trim();
+          if (!trimmedChapter) return false;
+          const trimmedTitle = (title || "").trim() || trimmedChapter;
+          const chapterId = await upsertChapter(selectedPack.id, null, {
+            chapter: trimmedChapter,
+            title: trimmedTitle,
+            words: {},
+          });
+          const list = await getChaptersByPack(selectedPack.id);
+          setChaptersByPack((prev) => ({ ...prev, [selectedPack.id]: list }));
+          setSelectedChapterId(chapterId);
+          return true;
+        } catch (error) {
+          console.error(error);
+          alert(STRINGS.packsPage.alerts.operationFailed);
+          return false;
+        }
+      },
     });
-    const list = await getChaptersByPack(selectedPack.id);
-    setChaptersByPack((prev) => ({ ...prev, [selectedPack.id]: list }));
   };
-  const handleDeleteChapter = async () => {
-    if (!selectedChapterId) return alert("챕터를 선택하세요.");
-    const current = chapters.find((c) => c.chapterId === selectedChapterId);
+
+  const handleEditChapter = () => {
+    if (!selectedPack || !selectedChapterId) return alert(STRINGS.packsPage.alerts.selectChapterFirst);
+
+    const current = chapters.find((chapter) => chapter.chapterId === selectedChapterId);
+    const chapterLabel = current?.chapter || current?.chapterId || selectedChapterId;
+
+    setFormModalConfig({
+      title: STRINGS.packsPage.forms.editChapterTitle,
+      description: STRINGS.packsPage.forms.editChapterDescription,
+      submitLabel: STRINGS.packsPage.forms.editChapterSubmit,
+      fields: [
+        {
+          name: "chapter",
+          label: STRINGS.packsPage.forms.chapterIdLabel,
+          disabled: true,
+          readOnly: true,
+        },
+        {
+          name: "title",
+          label: STRINGS.packsPage.forms.chapterTitleLabel,
+          required: true,
+        },
+      ],
+      initialValues: {
+        chapter: chapterLabel,
+        title: current?.title || chapterLabel,
+      },
+      onSubmit: async ({ title }) => {
+        try {
+          const trimmedTitle = (title || "").trim() || chapterLabel;
+          await upsertChapter(selectedPack.id, selectedChapterId, {
+            chapter: chapterLabel,
+            title: trimmedTitle,
+            words: current?.words || {},
+          });
+          const list = await getChaptersByPack(selectedPack.id);
+          setChaptersByPack((prev) => ({ ...prev, [selectedPack.id]: list }));
+          return true;
+        } catch (error) {
+          console.error(error);
+          alert(STRINGS.packsPage.alerts.operationFailed);
+          return false;
+        }
+      },
+    });
+  };
+
+  const handleDeleteChapter = () => {
+    if (!selectedPack || !selectedChapterId) return alert(STRINGS.packsPage.alerts.selectChapterFirst);
+
+    const current = chapters.find((chapter) => chapter.chapterId === selectedChapterId);
     const chapterLabel = current?.chapter || current?.title || selectedChapterId;
-    if (!window.confirm(`챕터 "${chapterLabel}" 를 삭제할까요?`)) return;
-    await deleteChapter(selectedPack.id, selectedChapterId); // ✅ 2025-09-27: packId 인자 추가
-    const list = await getChaptersByPack(selectedPack.id);
-    setChaptersByPack((prev) => ({ ...prev, [selectedPack.id]: list }));
-    setSelectedChapterId(list[0]?.chapterId || "");
+    const description = [
+      STRINGS.packsPage.forms.deleteChapterDescription(chapterLabel),
+      STRINGS.packsPage.alerts.confirmDeleteChapter(chapterLabel),
+    ].join("\n");
+
+    setConfirmModalConfig({
+      title: STRINGS.packsPage.forms.deleteChapterTitle,
+      description,
+      confirmLabel: STRINGS.common.buttons.delete,
+      confirmTone: "danger",
+      onConfirm: async () => {
+        try {
+          await deleteChapter(selectedPack.id, selectedChapterId);
+          const list = await getChaptersByPack(selectedPack.id);
+          setChaptersByPack((prev) => ({ ...prev, [selectedPack.id]: list }));
+          setSelectedChapterId(list[0]?.chapterId || "");
+          return true;
+        } catch (error) {
+          console.error(error);
+          alert(STRINGS.packsPage.alerts.operationFailed);
+          return false;
+        }
+      },
+    });
   };
 
   /* ===== 단어 액션 ===== */
   const handleAddWord = async () => {
-    if (!selectedPack || !selectedChapterId) return alert("챕터를 선택하세요.");
+    if (!selectedPack || !selectedChapterId) return alert(STRINGS.packsPage.alerts.selectChapterFirst);
     const word = prompt("단어");
     if (!word) return;
     const pos = prompt("품사", "n.") || "";
@@ -409,7 +689,7 @@ export default function PacksPage() {
     const meaning = prompt("뜻", w.meaning || "") || w.meaning;
     const example = prompt("예문", w.example || "") || w.example;
     arr[idx] = { word, pos, meaning, example };
-     const chapterLabel = current?.chapter || current?.title || selectedChapterId;
+    const chapterLabel = current?.chapter || current?.title || selectedChapterId;
     await upsertChapter(selectedPack.id, selectedChapterId, {
       chapter: chapterLabel,
       title: current?.title || chapterLabel,
@@ -420,7 +700,7 @@ export default function PacksPage() {
   };
   const handleDeleteWord = async (idx) => {
     if (!selectedPack || !selectedChapterId) return;
-    if (!window.confirm("이 단어를 삭제할까요?")) return;
+    if (!window.confirm(STRINGS.packsPage.alerts.confirmDeleteWord)) return;
     const current = chapters.find((c) => c.chapterId === selectedChapterId);
     const arr = wordsObjectToArray(current?.words || []);
     arr.splice(idx, 1);
@@ -439,18 +719,18 @@ export default function PacksPage() {
 
   const onPackCsvSelected = async (e) => {
     try {
-      if (!selectedPack) return alert("먼저 언어팩을 선택하세요.");
+      if (!selectedPack) return alert(STRINGS.packsPage.alerts.selectPackFirst);
       const file = e.target.files?.[0];
       if (!file) return;
 
       const text = await file.text();
       const rows = parseCSV(text);
-      if (rows.length === 0) return alert("CSV 파일이 비어있습니다.");
+      if (rows.length === 0) return alert(STRINGS.packsPage.csv.emptyFile);
 
       const [header, ...data] = rows;
       const required = ["chapter", "chaptertitle", "word", "pos", "meaning", "example"];
-      if (!ensureHeaders(header, required)) {
-        return alert('CSV 헤더가 올바르지 않습니다.\n필수: chapter,chapterTitle,word,pos,meaning,example');
+      if (!ensureHeaders(header, CSV_REQUIRED_HEADERS)) {
+        return alert(`${STRINGS.packsPage.csv.headerError}\n${STRINGS.packsPage.csv.headerRequired}`);
       }
       const cIdx = idxOf(header, "chapter");
       const tIdx = idxOf(header, "chaptertitle");
@@ -472,13 +752,12 @@ export default function PacksPage() {
           });
         }
       }
-      if (Object.keys(grouped).length === 0) return alert("업로드할 유효한 행이 없습니다.");
-
+      if (Object.keys(grouped).length === 0) return alert(STRINGS.packsPage.csv.invalidRows);
       setPendingPackGrouped(grouped);
       setShowPackUploadMode(true);
     } catch (err) {
       console.error(err);
-      alert("CSV 처리 중 오류가 발생했습니다.");
+      alert(STRINGS.packsPage.csv.processingError);
     } finally {
       e.target.value = "";
     }
@@ -544,18 +823,17 @@ export default function PacksPage() {
   const openChapterCsv = () => chapterCsvRef.current?.click();
   const onChapterCsvSelected = async (e) => {
     try {
-      if (!selectedPack) return alert("먼저 언어팩을 선택하세요.");
+      if (!selectedPack) return alert(STRINGS.packsPage.alerts.selectPackFirst);
       const file = e.target.files?.[0];
       if (!file) return;
 
       const text = await file.text();
       const rows = parseCSV(text);
-      if (rows.length === 0) return alert("CSV 파일이 비어있습니다.");
+      if (rows.length === 0) return alert(STRINGS.packsPage.csv.emptyFile);
 
       const [header, ...data] = rows;
-      const required = ["chapter", "chaptertitle", "word", "pos", "meaning", "example"];
-      if (!ensureHeaders(header, required)) {
-        return alert('CSV 헤더가 올바르지 않습니다.\n필수: chapter,chapterTitle,word,pos,meaning,example');
+      if (!ensureHeaders(header, CSV_REQUIRED_HEADERS)) {
+        return alert(`${STRINGS.packsPage.csv.headerError}\n${STRINGS.packsPage.csv.headerRequired}`);
       }
       const wIdx = idxOf(header, "word");
       const pIdx = idxOf(header, "pos");
@@ -563,7 +841,7 @@ export default function PacksPage() {
       const eIdx = idxOf(header, "example");
 
       const current = await getChaptersByPack(selectedPack.id);
-      if (current.length === 0) return alert("먼저 최소 1개의 챕터를 만들어 주세요.");
+      if (current.length === 0) return alert(STRINGS.packsPage.csv.needChapter);
       const last = current[current.length - 1];
       const baseArr = wordsObjectToArray(last.words || []);
       const byWord = new Map(baseArr.map((w) => [(w.word || "").trim(), true]));
@@ -598,10 +876,10 @@ export default function PacksPage() {
       const refreshed = await getChaptersByPack(selectedPack.id);
       setChaptersByPack((prev) => ({ ...prev, [selectedPack.id]: refreshed }));
       setSelectedChapterId(last.chapterId);
-      alert("CSV를 마지막 챕터에 추가했습니다.");
+      alert(STRINGS.packsPage.csv.appendSuccess);
     } catch (err) {
       console.error(err);
-      alert("CSV 처리 중 오류가 발생했습니다.");
+      alert(STRINGS.packsPage.csv.processingError);
     } finally {
       applyChoiceRef.current = null;
       dupResolverRef.current = null;
@@ -630,12 +908,12 @@ export default function PacksPage() {
 
       {/* 언어 */}
       <LevelBar
-        title="언어 종류"
+        title={STRINGS.packsPage.levelBar.languagesTitle}
         color="bg-orange-500"
         actions={[
-          { label: "추가", onClick: handleAddLanguage, className: "bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700" },
-          { label: "삭제", onClick: handleDeleteLanguage, className: "bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700" },
-          { label: "수정", onClick: handleEditLanguage, className: "bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600" },
+          { label: STRINGS.common.buttons.add, onClick: handleAddLanguage, className: "bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700" },
+          { label: STRINGS.common.buttons.delete, onClick: handleDeleteLanguage, className: "bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700" },
+          { label: STRINGS.common.buttons.edit, onClick: handleEditLanguage, className: "bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600" },
         ]}
       >
         <SelectChips
@@ -650,13 +928,13 @@ export default function PacksPage() {
 
       {/* 언어팩 */}
       <LevelBar
-        title="언어팩 종류"
+        title={STRINGS.packsPage.levelBar.packsTitle}
         color="bg-amber-300"
         actions={[
-          { label: "CSV 업로드", onClick: openPackCsv, className: "bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700" },
-          { label: "추가", onClick: handleAddPack, className: "bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700" },
-          { label: "삭제", onClick: handleDeletePack, className: "bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700" },
-          { label: "수정", onClick: handleEditPack, className: "bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600" },
+          { label: STRINGS.packsPage.levelBar.uploadCsv, onClick: openPackCsv, className: "bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700" },
+          { label: STRINGS.common.buttons.add, onClick: handleAddPack, className: "bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700" },
+          { label: STRINGS.common.buttons.delete, onClick: handleDeletePack, className: "bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700" },
+          { label: STRINGS.common.buttons.edit, onClick: handleEditPack, className: "bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600" },
         ]}
       >
         <div className="mb-2 flex justify-end">
@@ -671,20 +949,20 @@ export default function PacksPage() {
             getLabel={(x) => x.label}
           />
         ) : (
-          <span className="text-gray-500 text-sm">먼저 위에서 언어를 선택하세요.</span>
+          <span className="text-gray-500 text-sm">{STRINGS.packsPage.alerts.selectLanguageFirst}</span>
         )}
         <input ref={packCsvRef} type="file" accept=".csv,text/csv" className="hidden" onChange={onPackCsvSelected} />
       </LevelBar>
 
       {/* 챕터 */}
       <LevelBar
-        title="챕터"
+        title={STRINGS.packsPage.levelBar.chaptersTitle}
         color="bg-amber-200"
         actions={[
-          { label: "CSV 업로드", onClick: openChapterCsv, className: "bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700" },
-          { label: "추가", onClick: handleAddChapter, className: "bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700" },
-          { label: "삭제", onClick: handleDeleteChapter, className: "bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700" },
-          { label: "수정", onClick: handleEditChapter, className: "bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600" },
+          { label: STRINGS.packsPage.levelBar.uploadCsv, onClick: openChapterCsv, className: "bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700" },
+          { label: STRINGS.common.buttons.add, onClick: handleAddChapter, className: "bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700" },
+          { label: STRINGS.common.buttons.delete, onClick: handleDeleteChapter, className: "bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700" },
+          { label: STRINGS.common.buttons.edit, onClick: handleEditChapter, className: "bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600" },
         ]}
       >
         <div className="mb-2 flex justify-end">
@@ -700,13 +978,13 @@ export default function PacksPage() {
             activeClass="bg-amber-50 border-amber-300 text-amber-900"
           />
         ) : (
-          <span className="text-gray-500 text-sm">먼저 위에서 언어팩을 선택하세요.</span>
+          <span className="text-gray-500 text-sm">{STRINGS.packsPage.alerts.selectPackFirst}</span>
         )}
         <input ref={chapterCsvRef} type="file" accept=".csv,text/csv" className="hidden" onChange={onChapterCsvSelected} />
       </LevelBar>
 
       {/* 단어 리스트 */}
-       <WordCollectionsPanel
+      <WordCollectionsPanel
         groups={wordGroups}
         activeGroupKey={activeGroupKey}
         onAdd={handleAddWord}
@@ -717,17 +995,11 @@ export default function PacksPage() {
       {/* 모달들 */}
       {/* 팩 업로드 모드 선택 */}
       {showPackUploadMode && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white w-[320px] rounded-lg shadow-lg p-5">
-            <h3 className="text-lg font-semibold mb-3">업로드 모드 선택</h3>
-            <p className="text-sm text-gray-600 mb-4">덮어쓰기 vs 챕터 뒤에 추가, 어떻게 하시겠습니까?</p>
-            <div className="flex justify-end gap-2">
-              <button className="bg-gray-200 px-3 py-1 rounded" onClick={() => setShowPackUploadMode(false)}>취소</button>
-              <button className="bg-yellow-500 text-white px-3 py-1 rounded" onClick={() => applyPackGrouped("overwrite")}>덮어쓰기</button>
-              <button className="bg-green-600 text-white px-3 py-1 rounded" onClick={() => applyPackGrouped("append")}>뒤에 추가</button>
-            </div>
-          </div>
-        </div>
+        <CsvUploadModeModal
+          onClose={() => setShowPackUploadMode(false)}
+          onOverwrite={() => applyPackGrouped("overwrite")}
+          onAppend={() => applyPackGrouped("append")}
+        />
       )}
 
       {/* 챕터 중복 단어 모달 */}
@@ -736,6 +1008,22 @@ export default function PacksPage() {
           word={dupWord}
           onChoose={handleDupChoose}
           onCancel={() => { handleDupChoose("ignore", true); }}
+        />
+      )}
+      
+      {/* 언어/언어팩/챕터 입력 모달 */}
+      {formModalConfig && (
+        <FormModal
+          {...formModalConfig}
+          onCancel={closeFormModal}
+        />
+      )}
+
+      {/* 삭제 등 확인 모달 */}
+      {confirmModalConfig && (
+        <ConfirmModal
+          {...confirmModalConfig}
+          onCancel={closeConfirmModal}
         />
       )}
     </div>

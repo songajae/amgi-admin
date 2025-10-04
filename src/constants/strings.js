@@ -8,6 +8,8 @@ export const STRINGS = {
       add: "추가",
       edit: "수정",
       delete: "삭제",
+      cancel: "취소",
+      confirm: "확인",
       prev: "이전",
       next: "다음",
     },
@@ -107,9 +109,86 @@ export const STRINGS = {
         pack: "언어팩",
         chapter: "챕터",
         unknown: "미정",
+        example: "예문",
       },
       emptyMessage: "등록된 단어가 없습니다.",
     },
+  },
+  
+  // PacksPage (src/pages/PacksPage.jsx)
+  packsPage: {
+    levelBar: {
+      languagesTitle: "언어",
+      packsTitle: "언어팩",
+      chaptersTitle: "챕터",
+      uploadCsv: "CSV 업로드",
+    },
+    csv: {
+      headerError: "CSV 헤더가 올바르지 않습니다.",
+      headerRequired: "필수: chapter,chapterTitle,word,pos,meaning,example",
+      emptyFile: "CSV 파일이 비어있습니다.",
+      invalidRows: "업로드할 유효한 행이 없습니다.",
+      processingError: "CSV 처리 중 오류가 발생했습니다.",
+      uploadModeTitle: "업로드 모드 선택",
+      uploadModeDescription: "덮어쓰기와 뒤에 추가 중 원하는 방식을 선택하세요.",
+      overwrite: "덮어쓰기",
+      append: "뒤에 추가",
+      needChapter: "먼저 최소 1개의 챕터를 만들어 주세요.",
+      appendSuccess: "CSV를 마지막 챕터에 추가했습니다.",
+    },
+    alerts: {
+      selectLanguageFirst: "먼저 언어를 선택하세요.",
+      selectPackFirst: "먼저 언어팩을 선택하세요.",
+      selectChapterFirst: "챕터를 선택하세요.",
+      confirmDeleteLanguage: (language, count) => `"${language}" 언어의 언어팩 ${count}개를 모두 삭제할까요?`,
+      confirmDeletePack: (packName) => `"${packName}" 언어팩을 삭제할까요?`,
+      confirmDeleteChapter: (chapterLabel) => `챕터 "${chapterLabel}" 를 삭제할까요?`,
+      confirmDeleteWord: "이 단어를 삭제할까요?",
+      operationFailed: "작업 중 오류가 발생했습니다.",
+    },
+    forms: {
+      // 언어 관리 모달 (src/pages/PacksPage.jsx)
+      addLanguageTitle: "언어 추가",
+      addLanguageDescription: "새로운 언어와 기본 언어팩 정보를 입력하세요.",
+      editLanguageTitle: "언어 수정",
+      editLanguageDescription: "선택한 언어의 이름을 수정합니다.",
+      deleteLanguageTitle: "언어 삭제",
+      deleteLanguageDescription: (language) => `선택한 언어(${language})에 속한 모든 언어팩이 삭제됩니다.`,
+      languageNameLabel: "언어 이름",
+      initialPackNameLabel: "기본 언어팩 이름",
+      packTypeLabel: "언어팩 타입",
+      packTypePlaceholder: "예: free, paid",
+      addLanguageSubmit: "언어 생성",
+      editLanguageSubmit: "언어 수정",
+
+      // 언어팩 관리 모달 (src/pages/PacksPage.jsx)
+      addPackTitle: "언어팩 추가",
+      addPackDescription: "선택한 언어에 새 언어팩을 추가합니다.",
+      editPackTitle: "언어팩 수정",
+      editPackDescription: "선택한 언어팩 정보를 수정합니다.",
+      deletePackTitle: "언어팩 삭제",
+      deletePackDescription: (packName) => `언어팩(${packName})과 해당 챕터가 삭제됩니다.`,
+      packNameLabel: "언어팩 이름",
+      addPackSubmit: "언어팩 생성",
+      editPackSubmit: "언어팩 수정",
+
+      // 챕터 관리 모달 (src/pages/PacksPage.jsx)
+      addChapterTitle: "챕터 추가",
+      addChapterDescription: "새로운 챕터 ID와 제목을 입력하세요.",
+      editChapterTitle: "챕터 수정",
+      editChapterDescription: "선택한 챕터의 제목을 수정합니다.",
+      deleteChapterTitle: "챕터 삭제",
+      deleteChapterDescription: (chapterLabel) => `챕터(${chapterLabel})에 포함된 모든 단어가 삭제됩니다.`,
+      chapterIdLabel: "챕터 ID",
+      chapterTitleLabel: "챕터 제목",
+      addChapterSubmit: "챕터 생성",
+      editChapterSubmit: "챕터 수정",
+    },
+  },
+
+  // Sample CSV Buttons (src/components/samples/*.jsx)
+  samples: {
+    downloadLabel: "샘플 CSV 다운로드",
   },
 };
 

@@ -55,17 +55,27 @@ export default function WordCollectionsPanel({
   const [query, setQuery] = useState("");
 
   const filteredGroups = useMemo(() => {
+    // ✅ 검색된 단어를 미리 집계해 중복 단어도 1건으로 계산하도록 보강
     return groups
       .map((group) => {
         const words = Array.isArray(group.words) ? group.words : [];
         const filteredWords = words.filter((word) => matchesQuery(word, query));
-        return { ...group, filteredWords };
+        const aggregatedWords = aggregateWordEntries(
+          filteredWords,
+          STRINGS.packs.wordsPanel.labels.unknown
+        );
+
+        return { ...group, filteredWords, aggregatedWords };
       })
-      .filter((group) => group.filteredWords.length > 0 || group.key === activeGroupKey);
+      .filter((group) => group.aggregatedWords.length > 0 || group.key === activeGroupKey);
   }, [groups, query, activeGroupKey]);
 
   const totalWords = useMemo(
-    () => filteredGroups.reduce((sum, group) => sum + group.filteredWords.length, 0),
+    () =>
+      filteredGroups.reduce(
+        (sum, group) => sum + (Array.isArray(group.aggregatedWords) ? group.aggregatedWords.length : 0),
+        0
+      ),
     [filteredGroups]
   );
 
@@ -153,16 +163,13 @@ export default function WordCollectionsPanel({
                     </aside>
 
                     <div className="flex-1">
-                      {group.filteredWords.length === 0 ? (
+                      {group.aggregatedWords.length === 0 ? (
                         <div className="rounded-lg border border-dashed border-slate-300 p-8 text-center text-sm text-slate-500">
                           {STRINGS.packs.wordsPanel.emptyMessage}
                         </div>
                       ) : (
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                          {aggregateWordEntries(
-                            group.filteredWords,
-                            STRINGS.packs.wordsPanel.labels.unknown
-                          ).map((word, index) => {
+                          {group.aggregatedWords.map((word, index) => {
                             const cardKey = `${group.key}-${word.key || index}`;
                             return (
                               <div
@@ -207,9 +214,12 @@ export default function WordCollectionsPanel({
                                           )}
                                         </div>
 
-                               {sense.example && (
+                                        {sense.example && (
                                           <p className="rounded-md bg-slate-50 p-3 text-xs text-slate-600">
-                                            <span className="font-semibold text-slate-700">예문</span> {sense.example}
+                                            <span className="font-semibold text-slate-700">
+                                              {STRINGS.packs.wordsPanel.labels.example}
+                                            </span>{" "}
+                                            {sense.example}
                                           </p>
                                         )}
                                       </div>
