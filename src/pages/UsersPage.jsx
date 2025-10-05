@@ -212,8 +212,7 @@ export default function UsersPage() {
   function ownedPackText(u) {
     const ids = extractOwnedPackIds(u) || [];
     if (ids.length === 0) return "-";
-    const labels = ids.map((id) => makePackLabel(packMap.get(id))).filter(Boolean);
-    const labels = ids.map((id) => makePackLabel(byId.get(id))).filter(Boolean);
+      const labels = ids.map((id) => makePackLabel(byId.get(id))).filter(Boolean);
     if (labels.length <= 3) return labels.join(", ");
     return `${labels.slice(0, 3).join(", ")} 외 ${labels.length - 3}개`;
   }
@@ -358,7 +357,7 @@ export default function UsersPage() {
           )}
         </div>
       </div>
-      
+
       {/* 하단 DeviceManager: 선택된 유저만으로 자동 표시 */}
       <div ref={deviceSectionRef} className="mt-8 space-y-3">
         <h2 className="text-xl font-bold">{STRINGS.users.deviceManagerTitle}</h2>
