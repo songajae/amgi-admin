@@ -91,6 +91,7 @@ export const STRINGS = {
       deleteSuccess: "유저가 완전히 삭제되었습니다.",
       withdrawSuccess: "유저가 탈퇴 처리되었습니다.",
       operationFailed: "유저 작업 중 오류가 발생했습니다.",
+      restoreSuccess: "유저가 재가입 처리되었습니다.",
     },
     withdrawn: {
       title: "탈퇴한 계정 목록",
@@ -100,6 +101,14 @@ export const STRINGS = {
         email: "이메일",
         withdrawnAt: "탈퇴일",
         scheduledDeletionAt: "삭제 예정일",
+        actions: "액션",
+      },
+      actions: {
+        restore: "재가입",
+        delete: "완전 삭제",
+      },
+      confirmations: {
+        restore: (name) => `${name} 유저를 재가입 처리할까요?`,
       },
     },
     deviceManagerTitle: "사용자 기기 관리",
@@ -200,8 +209,13 @@ export const STRINGS = {
       confirmDeleteChapter: (chapterLabel) => `챕터 "${chapterLabel}" 를 삭제할까요?`,
       confirmDeleteWord: "이 단어를 삭제할까요?",
       operationFailed: "작업 중 오류가 발생했습니다.",
+      deletePackCascadeNotice: (chapterCount, videoCount) =>
+        `추가로 ${chapterCount}개 챕터와 ${videoCount}개의 유튜브 링크 자료도 삭제됩니다.`,
+      deleteLanguageCascadeNotice: (chapterCount, videoCount) =>
+        `추가로 총 ${chapterCount}개 챕터와 ${videoCount}개의 유튜브 링크 자료도 삭제됩니다.`,
       packDeletedWithRelations: (userCount, purchaseCount) =>
         `연결된 사용자 ${userCount}명, 구매 내역 ${purchaseCount}건이 있는 상태에서 언어팩을 삭제했습니다. 영향을 받은 사용자를 안내해 주세요.`,
+      cannotDeleteBaseLanguage: (language) => `"${language}" 언어는 기본 언어라 삭제할 수 없습니다.`,
     },
     forms: {
       // 언어 관리 모달 (src/pages/PacksPage.jsx)

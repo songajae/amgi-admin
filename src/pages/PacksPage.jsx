@@ -24,8 +24,9 @@ import { parseCsvRows } from "../lib/csv";
 import {
   getWordPacks, addWordPack, updateWordPack, deleteWordPackCascade,
   getChaptersByPack, upsertChapter, deleteChapter,
-  getUsersByOwnedPack, getPurchasesByPack,
+  getUsersByOwnedPack, getPurchasesByPack, inspectWordPackContents,
 } from "../lib/firestore";
+import { ensureBaseLanguageCounts, isBaseLanguage } from "../constants/languages";
 
 /* ===== utils ===== */
 function wordsObjectToArray(wordsObj = {}, extra = {}) {
@@ -198,8 +199,15 @@ export default function PacksPage() {
   /* 언어 칩 라벨 */
   const languages = useMemo(() => {
     const counts = {};
-    for (const p of packs) counts[p.language] = (counts[p.language] || 0) + 1;
-    return Object.keys(counts).map((lang) => ({ id: lang, label: `${lang} (${counts[lang]})` }));
+    for (const p of packs) {
+      const lang = (p.language || "").trim();
+      if (!lang) continue;
+      counts[lang] = (counts[lang] || 0) + 1;
+    }
+    const filled = ensureBaseLanguageCounts(counts);
+    return Object.keys(filled)
+      .sort((a, b) => a.localeCompare(b))
+      .map((lang) => ({ id: lang, label: `${lang} (${filled[lang] || 0})` }));
   }, [packs]);
 
   /* 선택 언어 변경 → 언어팩, 챕터 초기화 */
@@ -421,14 +429,22 @@ export default function PacksPage() {
     if (!selectedLanguage) return alert(STRINGS.packsPage.alerts.selectLanguageFirst);
 
     try {
+      if (isBaseLanguage(selectedLanguage)) {
+        alert(STRINGS.packsPage.alerts.cannotDeleteBaseLanguage(selectedLanguage));
+        return;
+      }
       const targets = packs.filter((pack) => pack.language === selectedLanguage);
       const relationSummaries = await Promise.all(targets.map((pack) => inspectPackRelations(pack.id)));
       const totalUsers = relationSummaries.reduce((sum, r) => sum + r.userCount, 0);
       const totalPurchases = relationSummaries.reduce((sum, r) => sum + r.purchaseCount, 0);
+      const contentSummaries = await Promise.all(targets.map((pack) => inspectWordPackContents(pack.id)));
+      const totalChapters = contentSummaries.reduce((sum, summary) => sum + (summary.chapterCount || 0), 0);
+      const totalVideos = contentSummaries.reduce((sum, summary) => sum + (summary.videoCount || 0), 0);
 
       const description = [
         STRINGS.packsPage.forms.deleteLanguageDescription(selectedLanguage),
         STRINGS.packsPage.alerts.confirmDeleteLanguage(selectedLanguage, targets.length),
+        STRINGS.packsPage.alerts.deleteLanguageCascadeNotice(totalChapters, totalVideos),
         totalUsers + totalPurchases > 0
           ? STRINGS.packsPage.alerts.confirmDeleteLanguageWithRelations(selectedLanguage, totalUsers, totalPurchases)
           : null,
@@ -549,9 +565,11 @@ export default function PacksPage() {
 
      try {
       const { userCount, purchaseCount } = await inspectPackRelations(selectedPack.id);
+      const { chapterCount, videoCount } = await inspectWordPackContents(selectedPack.id);
 
       const description = [
         STRINGS.packsPage.forms.deletePackDescription(selectedPack.name),
+        STRINGS.packsPage.alerts.deletePackCascadeNotice(chapterCount, videoCount),
         userCount + purchaseCount > 0
           ? STRINGS.packsPage.alerts.confirmDeletePackWithRelations(selectedPack.name, userCount, purchaseCount)
           : STRINGS.packsPage.alerts.confirmDeletePack(selectedPack.name),

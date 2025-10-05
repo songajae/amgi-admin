@@ -20,6 +20,7 @@ import {
 } from "../lib/firestore";
 import { STRINGS } from "../constants/strings";
 import { ytThumbUrl } from "../utils/youtube";
+import { ensureBaseLanguageCounts } from "../constants/languages";
 
 const normalize = (s) => (s || "").toString().trim();
 const contains = (hay, needle) =>
@@ -76,8 +77,15 @@ function VideosPage() {
 
   const languageItems = useMemo(() => {
     const by = {};
-    for (const p of packs) by[p.language] = (by[p.language] || 0) + 1;
-    return Object.keys(by).map((lng) => ({ id: lng, label: `${lng} (${by[lng]})` }));
+    for (const p of packs) {
+      const lng = (p.language || "").trim();
+      if (!lng) continue;
+      by[lng] = (by[lng] || 0) + 1;
+    }
+    const filled = ensureBaseLanguageCounts(by);
+    return Object.keys(filled)
+      .sort((a, b) => a.localeCompare(b))
+      .map((lng) => ({ id: lng, label: `${lng} (${filled[lng] || 0})` }));
   }, [packs]);
 
   const packsOfLang = useMemo(() => packs.filter((p) => (lang ? p.language === lang : true)), [packs, lang]);

@@ -27,6 +27,7 @@ import {
   markUserWithdrawn,
   deleteUserImmediately,
   getPurchasesByUser,
+  updateUserStatus,
 } from "../lib/firestore";
 import { STRINGS } from "../constants/strings";
 import { displayNameOf, extractOwnedPackIds, makePackLabel } from "../utils/users";
@@ -153,6 +154,26 @@ export default function UsersPage() {
       await markUserWithdrawn(user.id);
       await fetchAll();
       alert(STRINGS.users.alerts.withdrawSuccess);
+      setSelectedUser((prev) => (prev && prev.id === user.id ? null : prev));
+    } catch (error) {
+      console.error(error);
+      alert(STRINGS.users.alerts.operationFailed);
+    }
+  };
+
+  const handleRestoreWithdrawn = async (user) => {
+    if (!user) return;
+    const name = displayNameOf(user);
+    if (!window.confirm(STRINGS.users.withdrawn.confirmations.restore(name))) return;
+    try {
+      await updateUserStatus(user.id, {
+        state: "active",
+        updatedAt: Date.now(),
+        note: "관리자에 의해 재가입 처리됨",
+        scheduledDeletionAt: null,
+      });
+      await fetchAll();
+      alert(STRINGS.users.alerts.restoreSuccess);
       setSelectedUser((prev) => (prev && prev.id === user.id ? null : prev));
     } catch (error) {
       console.error(error);
@@ -343,6 +364,7 @@ export default function UsersPage() {
                   <th className="px-4 py-2">{STRINGS.users.withdrawn.columns.email}</th>
                   <th className="px-4 py-2">{STRINGS.users.withdrawn.columns.withdrawnAt}</th>
                   <th className="px-4 py-2">{STRINGS.users.withdrawn.columns.scheduledDeletionAt}</th>
+                  <th className="px-4 py-2 text-right">{STRINGS.users.withdrawn.columns.actions}</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -352,6 +374,24 @@ export default function UsersPage() {
                     <td className="px-4 py-2">{user.email || "-"}</td>
                     <td className="px-4 py-2">{formatDateOnly(user.accountStatus?.updatedAt)}</td>
                     <td className="px-4 py-2">{formatDateOnly(user.accountStatus?.scheduledDeletionAt)}</td>
+                     <td className="px-4 py-2">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          className="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700"
+                          onClick={() => handleRestoreWithdrawn(user)}
+                        >
+                          {STRINGS.users.withdrawn.actions.restore}
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded bg-red-600 px-3 py-1 text-xs font-medium text-white hover:bg-red-700"
+                          onClick={() => openRemovalModal(user)}
+                        >
+                          {STRINGS.users.withdrawn.actions.delete}
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

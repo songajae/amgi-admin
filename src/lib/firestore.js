@@ -85,15 +85,70 @@ export const markWordPackDeleted = (id, extra = {}) =>
   );
 
 // [수정] 언어팩 삭제 시 연관된 챕터/영상/플래그를 모두 정리한다.
-export const deleteWordPackCascade = async (packId) => {
-  const chaptersCol = collection(db, `word_packs/${packId}/chapters`);
-  const chapters = await safeGetDocs(query(chaptersCol));
-  await Promise.all(chapters.map((chapter) => deleteDoc(doc(chaptersCol, chapter.id))));
+export const getVideosByPack = async (packId) => {
+  if (!packId) return [];
+  return safeGetDocs(query(col("packsYoutube"), where("packId", "==", packId)));
+};
 
-  const videos = await safeGetDocs(query(col("packsYoutube"), where("packId", "==", packId)));
-  await Promise.all(videos.map((video) => deleteDoc(byId("packsYoutube", video.id))));
+export const getVideosByChapterIds = async (chapterIds = []) => {
+  const cleanIds = Array.from(
+    new Set((Array.isArray(chapterIds) ? chapterIds : []).map((id) => String(id || "").trim()).filter(Boolean))
+  );
+  if (!cleanIds.length) return [];
+
+  const chunks = [];
+  const CHUNK_SIZE = 10;
+  for (let i = 0; i < cleanIds.length; i += CHUNK_SIZE) {
+    chunks.push(cleanIds.slice(i, i + CHUNK_SIZE));
+  }
+
+  const snapshots = await Promise.all(
+    chunks.map((chunk) => safeGetDocs(query(col("packsYoutube"), where("chapterId", "in", chunk))))
+  );
+  return snapshots.flat();
+};
+
+export const inspectWordPackContents = async (packId) => {
+  const chapters = await getChaptersByPack(packId);
+  const chapterIds = chapters.map((chapter) => chapter.chapterId).filter(Boolean);
+  const [videosByPack, videosByChapter] = await Promise.all([
+    getVideosByPack(packId),
+    chapterIds.length ? getVideosByChapterIds(chapterIds) : Promise.resolve([]),
+  ]);
+
+  const videoMap = new Map();
+  for (const video of [...videosByPack, ...videosByChapter]) {
+    if (!video?.id) continue;
+    videoMap.set(video.id, video);
+  }
+
+  return {
+    chapters,
+    videos: Array.from(videoMap.values()),
+    chapterCount: chapters.length,
+    videoCount: videoMap.size,
+  };
+};
+
+export const deleteWordPackCascade = async (packId) => {
+  const { chapters, videos, chapterCount, videoCount } = await inspectWordPackContents(packId);
+  const chaptersCol = collection(db, `word_packs/${packId}/chapters`);
+  await Promise.all(
+    chapters.map((chapter) => {
+      const targetId = chapter.docId || chapter.chapterId || chapter.id;
+      if (!targetId) return Promise.resolve();
+      return deleteDoc(doc(chaptersCol, targetId));
+    })
+  );
+
+  const uniqueVideoIds = Array.from(new Set(videos.map((video) => video.id).filter(Boolean)));
+  if (uniqueVideoIds.length) {
+    await Promise.all(uniqueVideoIds.map((videoId) => deleteDoc(byId("packsYoutube", videoId))));
+  }
 
   await markWordPackDeleted(packId);
+  
+  return { chapterCount, videoCount };
 };
 
 
@@ -104,7 +159,7 @@ export const getChaptersByPack = async (packId) => {
   const normalized = list.map((item) => {
     const chapterId = item.chapterId ?? item.id;
     const chapter = item.chapter ?? item.chapterKey ?? item.id;
-    return { ...item, id: chapterId, chapter, chapterId };
+    return { ...item, id: chapterId, chapter, chapterId, docId: item.id };
   });
   return normalized.sort((a, b) => {
     const ao = a.order ?? 9999;
