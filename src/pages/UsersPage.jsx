@@ -14,6 +14,9 @@ import LoadingBar from "../components/LoadingBar";
 import PaginationFooter from "../components/common/PaginationFooter";
 import UserFormModal from "../components/users/UserFormModal";
 import DeviceManager from "../components/videos/DeviceManager";
+import UserRowActions from "../components/users/UserRowActions";
+import UserStatusBadge from "../components/users/UserStatusBadge";
+import UserRemovalModal from "../components/users/UserRemovalModal";
 import {
   getUsers,
   addUser,
@@ -21,30 +24,13 @@ import {
   deleteUser,
   getWordPacks,
   setUserOwnedPacks,
+  markUserWithdrawn,
+  deleteUserImmediately,
+  getPurchasesByUser,
 } from "../lib/firestore";
 import { STRINGS } from "../constants/strings";
-
-// 보유팩 라벨 유틸
-function makePackLabel(pack) {
-  if (!pack) return "";
-  const name = pack.name || "(no-name)";
-  const lang = pack.language ? ` / ${pack.language}` : "";
-  const type = pack.type ? ` (${pack.type})` : "";
-  return `${name}${lang}${type}`;
-}
-function extractOwnedPackIds(user) {
-  if (!user) return [];
-  return (
-    user.ownedPacks ||
-    user.ownedPackIds ||
-    user.packs ||
-    user.purchased_packs ||
-    []
-  );
-}
-function displayNameOf(u) {
-  return u.displayName || u.name || u.email || "-";
-}
+import { displayNameOf, extractOwnedPackIds, makePackLabel } from "../utils/users";
+import { formatDateOnly } from "../utils/date";
 
 export default function UsersPage() {
   const [loading, setLoading] = useState(true);
@@ -65,14 +51,23 @@ export default function UsersPage() {
   const [selectedUser, setSelectedUser] = useState(null);
   const deviceSectionRef = useRef(null);
 
+  // [수정] 삭제 확인 모달 제어용 상태
+  const [removalTarget, setRemovalTarget] = useState(null);
+  const [removalPurchases, setRemovalPurchases] = useState([]);
+  const [removalLoading, setRemovalLoading] = useState(false);
+  const [showRemovalModal, setShowRemovalModal] = useState(false);
+
   const fetchAll = async () => {
     setLoading(true);
     const [userList, packList] = await Promise.all([getUsers(), getWordPacks()]);
     setUsers(userList);
     setPacks(packList);
     setLoading(false);
+    setSelectedUser((prev) => (prev ? userList.find((u) => u.id === prev.id) || null : null));
   };
   useEffect(() => { fetchAll(); }, []);
+
+  const packMap = useMemo(() => new Map(packs.map((p) => [p.id, p])), [packs]);
 
   const filtered = useMemo(() => {
     const qq = q.trim().toLowerCase();
@@ -84,10 +79,24 @@ export default function UsersPage() {
     });
   }, [q, users]);
 
-  const total = filtered.length;
+  const activeFiltered = useMemo(
+    () =>
+      filtered.filter((u) => (u.accountStatus?.state || "active") !== "withdrawn"),
+    [filtered]
+  );
+
+  const withdrawnList = useMemo(
+    () =>
+      users
+        .filter((u) => u.accountStatus?.state === "withdrawn")
+        .sort((a, b) => (b.accountStatus?.updatedAt || 0) - (a.accountStatus?.updatedAt || 0)),
+    [users]
+  );
+
+  const total = activeFiltered.length;
   const lastPage = Math.max(1, Math.ceil(total / perPage));
   const safePage = Math.min(Math.max(1, page), lastPage);
-  const slice = filtered.slice((safePage - 1) * perPage, safePage * perPage);
+  const slice = activeFiltered.slice((safePage - 1) * perPage, safePage * perPage);
 
   const openAdd = () => {
     setFormMode("add");
@@ -111,6 +120,13 @@ export default function UsersPage() {
         email: data.email,
         ownedPacks: data.ownedPacks,
         password,
+        createdAt: Date.now(),
+        accountStatus: {
+          state: "active",
+          updatedAt: Date.now(),
+          note: "",
+          scheduledDeletionAt: null,
+        },
       });
       // 새 유저의 purchases 동기화는 필요 시 추가
     } else {
@@ -129,11 +145,60 @@ export default function UsersPage() {
     setShowForm(false);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm(STRINGS.users.confirmDelete)) return;
-    await deleteUser(id);
-    await fetchAll();
-    setSelectedUser((prev) => (prev && prev.id === id ? null : prev));
+  // [수정] 탈퇴 처리를 담당하는 핸들러
+  const handleWithdraw = async (user) => {
+    if (!user) return;
+    if (!window.confirm(STRINGS.users.confirmations.withdraw)) return;
+    try {
+      await markUserWithdrawn(user.id);
+      await fetchAll();
+      alert(STRINGS.users.alerts.withdrawSuccess);
+      setSelectedUser((prev) => (prev && prev.id === user.id ? null : prev));
+    } catch (error) {
+      console.error(error);
+      alert(STRINGS.users.alerts.operationFailed);
+    }
+  };
+
+  // [수정] 삭제 모달을 열고 구매 내역을 조회한다.
+  const openRemovalModal = async (user) => {
+    if (!user) return;
+    setRemovalTarget(user);
+    setShowRemovalModal(true);
+    setRemovalLoading(true);
+    setRemovalPurchases([]);
+    try {
+      const purchases = await getPurchasesByUser(user.id);
+      setRemovalPurchases(purchases);
+    } catch (error) {
+      console.error(error);
+      alert(STRINGS.users.alerts.operationFailed);
+    } finally {
+      setRemovalLoading(false);
+    }
+  };
+
+  const closeRemovalModal = () => {
+    setShowRemovalModal(false);
+    setRemovalTarget(null);
+    setRemovalPurchases([]);
+    setRemovalLoading(false);
+  };
+
+  const confirmRemoval = async (user) => {
+    if (!user) return;
+    setRemovalLoading(true);
+    try {
+      await deleteUserImmediately(user.id);
+      await fetchAll();
+      alert(STRINGS.users.alerts.deleteSuccess);
+      setSelectedUser((prev) => (prev && prev.id === user.id ? null : prev));
+      closeRemovalModal();
+    } catch (error) {
+      console.error(error);
+      alert(STRINGS.users.alerts.operationFailed);
+      setRemovalLoading(false);
+    }
   };
 
   // [2025-09-27 PATCH] 행 클릭 = 선택 + 기기관리 섹션으로 스크롤
@@ -147,7 +212,7 @@ export default function UsersPage() {
   function ownedPackText(u) {
     const ids = extractOwnedPackIds(u) || [];
     if (ids.length === 0) return "-";
-    const byId = new Map(packs.map((p) => [p.id, p]));
+    const labels = ids.map((id) => makePackLabel(packMap.get(id))).filter(Boolean);
     const labels = ids.map((id) => makePackLabel(byId.get(id))).filter(Boolean);
     if (labels.length <= 3) return labels.join(", ");
     return `${labels.slice(0, 3).join(", ")} 외 ${labels.length - 3}개`;
@@ -194,6 +259,7 @@ export default function UsersPage() {
              <th className="px-4 py-2">{STRINGS.users.table.name}</th>
               <th className="px-4 py-2">{STRINGS.users.table.email}</th>
               <th className="px-4 py-2">{STRINGS.users.table.packs}</th>
+              <th className="px-4 py-2">{STRINGS.users.table.status}</th>
               <th className="px-4 py-2 text-center">{STRINGS.users.table.actions}</th>
             </tr>
           </thead>
@@ -209,32 +275,24 @@ export default function UsersPage() {
                   <td className="px-4 py-2">{displayNameOf(u)}</td>
                   <td className="px-4 py-2">{u.email || "-"}</td>
                   <td className="px-4 py-2">{ownedPackText(u)}</td>
+                  <td className="px-4 py-2"><UserStatusBadge status={u.accountStatus} /></td>
                   <td className="px-4 py-2">
-                    <div className="flex items-center gap-2 justify-center">
-                      <button
-                        className="px-2 py-1 border rounded hover:bg-gray-100"
-                        onClick={(e) => { e.stopPropagation(); openEdit(u, e.currentTarget); }}
-                      >
-                        {STRINGS.common.buttons.edit}
-                      </button>
-                      <button
-                        className="px-2 py-1 border rounded bg-red-600 text-white hover:bg-red-700"
-                        onClick={(e) => { e.stopPropagation(); handleDelete(u.id); }}
-                      >
-                        {STRINGS.common.buttons.delete}
-                      </button>
-                    </div>
+                    <UserRowActions
+                      onEdit={(e) => { e.stopPropagation(); openEdit(u, e.currentTarget); }}
+                      onWithdraw={(e) => { e.stopPropagation(); handleWithdraw(u); }}
+                      onDelete={(e) => { e.stopPropagation(); openRemovalModal(u); }}
+                    />
                   </td>
                 </tr>
               );
             })}
-            {slice.length === 0 && !loading && (
-              <tr>
-                <td className="px-4 py-10 text-center text-gray-500" colSpan={4}>
-                  {STRINGS.common.messages.noResults}
-                </td>
-              </tr>
-            )}
+              {slice.length === 0 && !loading && (
+                <tr>
+                  <td className="px-4 py-10 text-center text-gray-500" colSpan={5}>
+                    {STRINGS.common.messages.noResults}
+                  </td>
+                </tr>
+              )}
           </tbody>
         </table>
       </div>
@@ -260,6 +318,47 @@ export default function UsersPage() {
         />
       )}
 
+{showRemovalModal && (
+        <UserRemovalModal
+          user={removalTarget}
+          packs={packs}
+          purchases={removalPurchases}
+          loading={removalLoading}
+          onClose={closeRemovalModal}
+          onConfirm={confirmRemoval}
+        />
+      )}
+
+      <div className="mt-10 space-y-3">
+        <h2 className="text-xl font-bold">{STRINGS.users.withdrawn.title}</h2>
+        <div className="overflow-x-auto border rounded bg-white">
+          {withdrawnList.length === 0 ? (
+            <p className="px-4 py-6 text-sm text-gray-500">{STRINGS.users.withdrawn.empty}</p>
+          ) : (
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50 text-gray-600">
+                <tr className="text-left">
+                  <th className="px-4 py-2">{STRINGS.users.withdrawn.columns.name}</th>
+                  <th className="px-4 py-2">{STRINGS.users.withdrawn.columns.email}</th>
+                  <th className="px-4 py-2">{STRINGS.users.withdrawn.columns.withdrawnAt}</th>
+                  <th className="px-4 py-2">{STRINGS.users.withdrawn.columns.scheduledDeletionAt}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {withdrawnList.map((user) => (
+                  <tr key={user.id}>
+                    <td className="px-4 py-2">{displayNameOf(user)}</td>
+                    <td className="px-4 py-2">{user.email || "-"}</td>
+                    <td className="px-4 py-2">{formatDateOnly(user.accountStatus?.updatedAt)}</td>
+                    <td className="px-4 py-2">{formatDateOnly(user.accountStatus?.scheduledDeletionAt)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+      
       {/* 하단 DeviceManager: 선택된 유저만으로 자동 표시 */}
       <div ref={deviceSectionRef} className="mt-8 space-y-3">
         <h2 className="text-xl font-bold">{STRINGS.users.deviceManagerTitle}</h2>

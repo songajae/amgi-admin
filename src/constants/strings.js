@@ -51,8 +51,57 @@ export const STRINGS = {
       email: "이메일",
       packs: "보유 팩",
       actions: "액션",
+      status: "상태",
     },
-    confirmDelete: "해당 유저를 삭제하시겠습니까?",
+    statuses: {
+      active: "활성",
+      withdrawn: "탈퇴",
+      deleted: "삭제됨",
+    },
+    statusBadges: {
+      scheduledDeletion: (dateText) => `삭제 예정일: ${dateText}`,
+    },
+    buttons: {
+      withdraw: "탈퇴 처리",
+      delete: "완전 삭제",
+      restore: "복구",
+    },
+    confirmations: {
+      withdraw: "해당 유저를 탈퇴 처리하시겠습니까?",
+    },
+    modals: {
+      deleteTitle: "유저 완전 삭제",
+      deleteDescription: "유저 정보와 구매 내역을 확인하고 삭제 여부를 결정하세요.",
+      ownedPacksLabel: "보유 중인 언어팩",
+      noPacks: "보유한 언어팩이 없습니다.",
+      purchasesLabel: "구매 내역",
+      noPurchases: "구매 내역이 없습니다.",
+      fields: {
+        name: "이름",
+        email: "이메일",
+        status: "상태",
+        joinedAt: "가입일",
+        lastUpdated: "최근 업데이트",
+        note: "비고",
+      },
+      confirmDelete: (name) => `${name} 유저를 완전히 삭제할까요?`,
+      deleting: "삭제 중...",
+    },
+    alerts: {
+      deleteSuccess: "유저가 완전히 삭제되었습니다.",
+      withdrawSuccess: "유저가 탈퇴 처리되었습니다.",
+      operationFailed: "유저 작업 중 오류가 발생했습니다.",
+    },
+    withdrawn: {
+      title: "탈퇴한 계정 목록",
+      empty: "탈퇴한 계정이 없습니다.",
+      columns: {
+        name: "이름",
+        email: "이메일",
+        withdrawnAt: "탈퇴일",
+        scheduledDeletionAt: "삭제 예정일",
+      },
+    },
     deviceManagerTitle: "사용자 기기 관리",
   },
 
@@ -144,9 +193,15 @@ export const STRINGS = {
       selectChapterFirst: "챕터를 선택하세요.",
       confirmDeleteLanguage: (language, count) => `"${language}" 언어의 언어팩 ${count}개를 모두 삭제할까요?`,
       confirmDeletePack: (packName) => `"${packName}" 언어팩을 삭제할까요?`,
+      confirmDeletePackWithRelations: (packName, userCount, purchaseCount) =>
+        `"${packName}" 언어팩을 삭제할 경우 관련 사용자 ${userCount}명, 구매 내역 ${purchaseCount}건이 함께 영향을 받습니다. 삭제하시겠습니까?`,
+      confirmDeleteLanguageWithRelations: (language, userCount, purchaseCount) =>
+        `"${language}" 언어에 속한 언어팩을 삭제하면 관련 사용자 ${userCount}명, 구매 내역 ${purchaseCount}건이 영향을 받습니다. 계속할까요?`,
       confirmDeleteChapter: (chapterLabel) => `챕터 "${chapterLabel}" 를 삭제할까요?`,
       confirmDeleteWord: "이 단어를 삭제할까요?",
       operationFailed: "작업 중 오류가 발생했습니다.",
+      packDeletedWithRelations: (userCount, purchaseCount) =>
+        `연결된 사용자 ${userCount}명, 구매 내역 ${purchaseCount}건이 있는 상태에서 언어팩을 삭제했습니다. 영향을 받은 사용자를 안내해 주세요.`,
     },
     forms: {
       // 언어 관리 모달 (src/pages/PacksPage.jsx)

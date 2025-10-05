@@ -14,7 +14,7 @@ import {
   deleteDoc,
   query,
   where,
-
+  orderBy,
 } from "firebase/firestore";
 
 // 공용
@@ -57,10 +57,12 @@ export const deleteUser = (id) => deleteDoc(byId("users", id));
 // Word Packs
 export const getWordPacks = async () => {
   const list = await safeGetDocs(col("word_packs"));
-  return list.map((item) => {
-    const wordPackId = item.wordPackId ?? item.id;
-    return { ...item, wordPackId, id: item.id };
-  });
+  return list
+    .filter((item) => !item.isDeleted) // [수정] 삭제 플래그가 있는 언어팩은 제외한다.
+    .map((item) => {
+      const wordPackId = item.wordPackId ?? item.id;
+      return { ...item, wordPackId, id: item.id };
+    });
 };
 export const addWordPack = async (data) => {
   const wordPackId = uid("wordPack");
@@ -70,7 +72,30 @@ export const addWordPack = async (data) => {
 };
 export const updateWordPack = (id, data) =>
   setDoc(byId("word_packs", id), { ...data, wordPackId: id }, { merge: true });
-export const deleteWordPack = (id) => deleteDoc(byId("word_packs", id));
+// [수정] 언어팩 삭제 시에는 실제 문서를 지우지 않고 삭제 정보를 기록한다.
+export const markWordPackDeleted = (id, extra = {}) =>
+  setDoc(
+    byId("word_packs", id),
+    {
+      isDeleted: true,
+      deletedAt: Date.now(),
+      ...extra,
+    },
+    { merge: true }
+  );
+
+// [수정] 언어팩 삭제 시 연관된 챕터/영상/플래그를 모두 정리한다.
+export const deleteWordPackCascade = async (packId) => {
+  const chaptersCol = collection(db, `word_packs/${packId}/chapters`);
+  const chapters = await safeGetDocs(query(chaptersCol));
+  await Promise.all(chapters.map((chapter) => deleteDoc(doc(chaptersCol, chapter.id))));
+
+  const videos = await safeGetDocs(query(col("packsYoutube"), where("packId", "==", packId)));
+  await Promise.all(videos.map((video) => deleteDoc(byId("packsYoutube", video.id))));
+
+  await markWordPackDeleted(packId);
+};
+
 
 // Chapters (하위 컬렉션)
 export const getChaptersByPack = async (packId) => {
@@ -111,6 +136,63 @@ export const getDevicesByUser = async (userId) => {
   return safeGetDocs(qy);
 };
 export const deleteDevice = async (docId) => deleteDoc(byId("device_registry", docId));
+
+// [수정] 언어팩이 다른 컬렉션에서 사용 중인지 확인한다.
+export const getUsersByOwnedPack = async (packId) => {
+  const ownedQuery = query(col("users"), where("ownedPacks", "array-contains", packId));
+  return safeGetDocs(ownedQuery);
+};
+
+export const getPurchasesByPack = async (packId) => {
+  const purchaseQuery = query(col("user_purchases"), where("packId", "==", packId));
+  return safeGetDocs(purchaseQuery);
+};
+
+// [수정] 유저 상태 필드를 갱신하기 위한 헬퍼.
+export const updateUserStatus = async (userId, statusPayload = {}) =>
+  setDoc(
+    byId("users", userId),
+    {
+      accountStatus: {
+        state: statusPayload.state || "active",
+        updatedAt: statusPayload.updatedAt || Date.now(),
+        note: statusPayload.note || "",
+        scheduledDeletionAt: statusPayload.scheduledDeletionAt || null,
+      },
+    },
+    { merge: true }
+  );
+
+// [수정] 탈퇴한 유저는 1년 뒤 자동 삭제를 위해 스케줄을 기록한다.
+export const markUserWithdrawn = async (userId) => {
+  const now = Date.now();
+  const oneYearLater = now + 365 * 24 * 60 * 60 * 1000;
+  await updateUserStatus(userId, {
+    state: "withdrawn",
+    updatedAt: now,
+    note: "사용자 요청으로 탈퇴 처리됨",
+    scheduledDeletionAt: oneYearLater,
+  });
+};
+
+// [수정] 삭제 처리 시에는 관련 user_purchases 문서를 즉시 제거한다.
+export const deleteUserImmediately = async (userId) => {
+  const purchases = await safeGetDocs(query(col("user_purchases"), where("userId", "==", userId)));
+  await Promise.all(purchases.map((purchase) => deleteDoc(byId("user_purchases", purchase.id))));
+  await deleteDoc(byId("users", userId));
+};
+
+// [수정] 모달에서 구매 내역을 보여주기 위해 사용자별 구매 문서를 조회한다.
+export const getPurchasesByUser = async (userId) => {
+  const purchaseQuery = query(col("user_purchases"), where("userId", "==", userId));
+  return safeGetDocs(purchaseQuery);
+};
+
+// [수정] 탈퇴 유저 목록을 시간순으로 가져오기 위한 함수.
+export const getWithdrawnUsers = async () => {
+  const withdrawnQuery = query(col("users"), where("accountStatus.state", "==", "withdrawn"), orderBy("accountStatus.updatedAt", "desc"));
+  return safeGetDocs(withdrawnQuery);
+};
 
 /* ============================================
    [2025-09-27 PATCH]

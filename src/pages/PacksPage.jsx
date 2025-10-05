@@ -22,8 +22,9 @@ import { STRINGS } from "../constants/strings";
 import { parseCsvRows } from "../lib/csv";
 
 import {
-  getWordPacks, addWordPack, updateWordPack, deleteWordPack,
-  getChaptersByPack, upsertChapter, deleteChapter
+  getWordPacks, addWordPack, updateWordPack, deleteWordPackCascade,
+  getChaptersByPack, upsertChapter, deleteChapter,
+  getUsersByOwnedPack, getPurchasesByPack,
 } from "../lib/firestore";
 
 /* ===== utils ===== */
@@ -159,6 +160,17 @@ export default function PacksPage() {
   const closeFormModal = () => setFormModalConfig(null);
   const closeConfirmModal = () => setConfirmModalConfig(null);
 
+  // [수정] 언어팩 삭제 전 연관 데이터를 확인하는 유틸.
+  const inspectPackRelations = async (packId) => {
+    const [usersUsingPack, purchaseDocs] = await Promise.all([
+      getUsersByOwnedPack(packId),
+      getPurchasesByPack(packId),
+    ]);
+    return {
+      userCount: usersUsingPack.length,
+      purchaseCount: purchaseDocs.length,
+    };
+  };
 
   /* -----------------------------------------------------------
    * 초기 로드: 모든 팩과 각 팩의 챕터까지 미리 로드
@@ -405,37 +417,54 @@ export default function PacksPage() {
     });
   };
 
-  const handleDeleteLanguage = () => {
+  const handleDeleteLanguage = async () => {
     if (!selectedLanguage) return alert(STRINGS.packsPage.alerts.selectLanguageFirst);
 
-    const targets = packs.filter((pack) => pack.language === selectedLanguage);
-    const description = [
-      STRINGS.packsPage.forms.deleteLanguageDescription(selectedLanguage),
-      STRINGS.packsPage.alerts.confirmDeleteLanguage(selectedLanguage, targets.length),
-    ].join("\n");
+    try {
+      const targets = packs.filter((pack) => pack.language === selectedLanguage);
+      const relationSummaries = await Promise.all(targets.map((pack) => inspectPackRelations(pack.id)));
+      const totalUsers = relationSummaries.reduce((sum, r) => sum + r.userCount, 0);
+      const totalPurchases = relationSummaries.reduce((sum, r) => sum + r.purchaseCount, 0);
 
-    setConfirmModalConfig({
-      title: STRINGS.packsPage.forms.deleteLanguageTitle,
-      description,
-      confirmLabel: STRINGS.common.buttons.delete,
-      confirmTone: "danger",
-      onConfirm: async () => {
-        try {
-          for (const pack of targets) {
-            await deleteWordPack(pack.id);
+      const description = [
+        STRINGS.packsPage.forms.deleteLanguageDescription(selectedLanguage),
+        STRINGS.packsPage.alerts.confirmDeleteLanguage(selectedLanguage, targets.length),
+        totalUsers + totalPurchases > 0
+          ? STRINGS.packsPage.alerts.confirmDeleteLanguageWithRelations(selectedLanguage, totalUsers, totalPurchases)
+          : null,
+      ]
+        .filter(Boolean)
+        .join("\n");
+
+      setConfirmModalConfig({
+        title: STRINGS.packsPage.forms.deleteLanguageTitle,
+        description,
+        confirmLabel: STRINGS.common.buttons.delete,
+        confirmTone: "danger",
+        onConfirm: async () => {
+          try {
+            for (const pack of targets) {
+              await deleteWordPackCascade(pack.id);
+            }
+            setSelectedLanguage("");
+            setSelectedPackId("");
+            setSelectedChapterId("");
+            await fetchPacks();
+            if (totalUsers + totalPurchases > 0) {
+              alert(STRINGS.packsPage.alerts.packDeletedWithRelations(totalUsers, totalPurchases));
+            }
+            return true;
+          } catch (error) {
+            console.error(error);
+            alert(STRINGS.packsPage.alerts.operationFailed);
+            return false;
           }
-          setSelectedLanguage("");
-          setSelectedPackId("");
-          setSelectedChapterId("");
-          await fetchPacks();
-          return true;
-        } catch (error) {
-          console.error(error);
-          alert(STRINGS.packsPage.alerts.operationFailed);
-          return false;
-        }
-      },
-    });
+          },
+      });
+    } catch (error) {
+      console.error(error);
+      alert(STRINGS.packsPage.alerts.operationFailed);
+    }
   };
 
   /* ===== 언어팩 액션 ===== */
@@ -515,33 +544,45 @@ export default function PacksPage() {
     });
   };
 
-  const handleDeletePack = () => {
+  const handleDeletePack = async () => {
     if (!selectedPack) return alert(STRINGS.packsPage.alerts.selectPackFirst);
 
-    const description = [
-      STRINGS.packsPage.forms.deletePackDescription(selectedPack.name),
-      STRINGS.packsPage.alerts.confirmDeletePack(selectedPack.name),
-    ].join("\n");
+     try {
+      const { userCount, purchaseCount } = await inspectPackRelations(selectedPack.id);
 
-    setConfirmModalConfig({
-      title: STRINGS.packsPage.forms.deletePackTitle,
-      description,
-      confirmLabel: STRINGS.common.buttons.delete,
-      confirmTone: "danger",
-      onConfirm: async () => {
-        try {
-          await deleteWordPack(selectedPack.id);
-          setSelectedPackId("");
-          setSelectedChapterId("");
-          await fetchPacks();
-          return true;
-        } catch (error) {
-          console.error(error);
-          alert(STRINGS.packsPage.alerts.operationFailed);
-          return false;
-        }
-      },
-    });
+      const description = [
+        STRINGS.packsPage.forms.deletePackDescription(selectedPack.name),
+        userCount + purchaseCount > 0
+          ? STRINGS.packsPage.alerts.confirmDeletePackWithRelations(selectedPack.name, userCount, purchaseCount)
+          : STRINGS.packsPage.alerts.confirmDeletePack(selectedPack.name),
+      ].join("\n");
+
+      setConfirmModalConfig({
+        title: STRINGS.packsPage.forms.deletePackTitle,
+        description,
+        confirmLabel: STRINGS.common.buttons.delete,
+        confirmTone: "danger",
+        onConfirm: async () => {
+          try {
+            await deleteWordPackCascade(selectedPack.id);
+            setSelectedPackId("");
+            setSelectedChapterId("");
+            await fetchPacks();
+            if (userCount + purchaseCount > 0) {
+              alert(STRINGS.packsPage.alerts.packDeletedWithRelations(userCount, purchaseCount));
+            }
+            return true;
+          } catch (error) {
+            console.error(error);
+            alert(STRINGS.packsPage.alerts.operationFailed);
+            return false;
+          }
+        },
+      });
+    } catch (error) {
+      console.error(error);
+      alert(STRINGS.packsPage.alerts.operationFailed);
+    }
   };
 
   /* ===== 챕터 액션 ===== */
