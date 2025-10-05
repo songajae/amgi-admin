@@ -212,7 +212,9 @@ export default function UsersPage() {
   function ownedPackText(u) {
     const ids = extractOwnedPackIds(u) || [];
     if (ids.length === 0) return "-";
-      const labels = ids.map((id) => makePackLabel(byId.get(id))).filter(Boolean);
+    const labels = ids
+      .map((id) => makePackLabel(packMap.get(id)))
+      .filter(Boolean);
     if (labels.length <= 3) return labels.join(", ");
     return `${labels.slice(0, 3).join(", ")} 외 ${labels.length - 3}개`;
   }
